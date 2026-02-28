@@ -140,7 +140,7 @@ def web_search_endpoint():
     try:
         result = web_search.search(q=q, provider=provider, count=count, offset=offset, safe=safe, lang=lang, country=country)
         # Filter inbound text fields to avoid leaking local secrets into results shown to the user
-        if secret_filter and secret_filter.enabled:
+        if secret_filter:
             for r in result.get("results", []):
                 r["title"] = profanity_filter.filter_text(secret_filter.filter_inbound(r.get("title", "")))
                 r["snippet"] = profanity_filter.filter_text(secret_filter.filter_inbound(r.get("snippet", "")))
