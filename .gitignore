@@ -1,32 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Logs / runtime
+logs/
+*.log
+
+# Browser profile (contains cookies / sessions!)
+profile/
+profiles/
+user-data-dir/
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Editors
+# IDE
 .vscode/
 .idea/
 
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-ENV/
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Build outputs
-dist/
-build/
-.cache/
-
-# Hyperfactory
-agents/
+# Secrets
+.env
+.env.*

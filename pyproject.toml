@@ -1,0 +1,9 @@
+[project]
+name = "clausy"
+version = "0.1.0"
+description = "OpenAI-compatible gateway to web-based LLM UIs via Playwright"
+requires-python = ">=3.10"
+dependencies = ["flask", "playwright"]
+
+[tool.ruff]
+line-length = 100
