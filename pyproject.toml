@@ -7,3 +7,10 @@ dependencies = ["flask", "playwright"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+markers = [
+  "contract: API contract tests for /v1/chat/completions",
+  "filtering: profanity/secret filtering behavior",
+  "routing: provider selection behavior",
+]

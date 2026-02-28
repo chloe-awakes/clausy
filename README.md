@@ -303,6 +303,29 @@ Use `--dry-run` to preview changes.
 
 ---
 
+## Testing
+
+Run all tests offline:
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+Run grouped suites:
+
+```bash
+# API contract (stream/non-stream + tool-call shape)
+.venv/bin/python -m pytest -q -m contract
+
+# profanity + secret filtering behavior
+.venv/bin/python -m pytest -q -m filtering
+
+# provider routing behavior
+.venv/bin/python -m pytest -q -m routing
+```
+
+These tests use local fixtures/test doubles and do not require browser login or network access.
+
 ## Documentation
 
 - `VISION.md`
