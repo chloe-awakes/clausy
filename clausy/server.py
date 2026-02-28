@@ -34,6 +34,12 @@ BIND = os.environ.get("CLAUSY_BIND", "0.0.0.0")
 PORT = int(os.environ.get("CLAUSY_PORT", "3108"))
 MAX_REPAIRS = int(os.environ.get("CLAUSY_MAX_REPAIRS", "2"))
 SESSION_HEADER = os.environ.get("CLAUSY_SESSION_HEADER", "X-Clausy-Session")
+TOOL_PASSWORD = os.environ.get("CLAUSY_TOOL_PASSWORD", "")
+TOOL_PASSWORD_HEADER = os.environ.get("CLAUSY_TOOL_PASSWORD_HEADER", "X-Clausy-Tool-Password")
+TOOL_PASSWORD_MESSAGE = os.environ.get(
+    "CLAUSY_TOOL_PASSWORD_MESSAGE",
+    "Tool execution is password-protected. Provide a valid tool password to continue.",
+)
 
 # Conversation reset
 RESET_TURNS = int(os.environ.get("CLAUSY_RESET_TURNS", "20"))
@@ -64,6 +70,31 @@ def get_session_id() -> str:
     if sid:
         return sid.strip()
     return (request.remote_addr or "default").replace(":", "_")
+
+
+def _tool_password_required() -> bool:
+    return bool(TOOL_PASSWORD.strip())
+
+
+def _tool_password_valid() -> bool:
+    if not _tool_password_required():
+        return True
+    got = (request.headers.get(TOOL_PASSWORD_HEADER) or "").strip()
+    return got == TOOL_PASSWORD.strip()
+
+
+def _enforce_tool_password(parsed: dict) -> dict:
+    try:
+        msg = parsed.get("choices", [{}])[0].get("message", {})
+        has_tool_calls = isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0
+        if has_tool_calls and not _tool_password_valid():
+            msg["tool_calls"] = None
+            msg["content"] = TOOL_PASSWORD_MESSAGE
+            parsed["choices"][0]["message"] = msg
+            parsed["choices"][0]["finish_reason"] = "stop"
+    except Exception:
+        pass
+    return parsed
 
 def build_backend_prompt(trimmed_request: dict) -> str:
     return output_mode_header() + json.dumps(trimmed_request, ensure_ascii=False)
@@ -238,7 +269,12 @@ def chat_completions():
                             provider.wait_done(page)
 
                         tools_text = strip_marker(buffer)
-                        parsed = parse_or_repair_output(tools_text, tools_only=True, max_repairs=MAX_REPAIRS)
+                        parsed = parse_or_repair_output(
+                            raw_text=f"<<<TOOLS>>>\n{tools_text}",
+                            ask_fn=lambda _p: f"<<<TOOLS>>>\n{tools_text}",
+                            model_name_for_fallback=model,
+                            max_repairs=0,
+                        )
 
                         try:
                             msg = parsed["choices"][0]["message"]
@@ -283,6 +319,16 @@ def chat_completions():
                         if info:
                             info = profanity_filter.filter_text(secret_filter.filter_inbound(info))
                             yield _content_delta(completion_id, created, model, info)
+
+                        if not _tool_password_valid():
+                            msg_text = profanity_filter.filter_text(secret_filter.filter_inbound(TOOL_PASSWORD_MESSAGE))
+                            yield _content_delta(completion_id, created, model, msg_text)
+                            yield _finish(completion_id, created, model, "stop")
+                            yield "data: [DONE]\n\n"
+
+                            meta["turns"] = int(meta.get("turns", 0)) + 1
+                            _post_turn_housekeeping(session_id, provider, meta)
+                            return
 
                         # tool_calls are streamed as a single chunk
                         yield _tools_delta(completion_id, created, model, tool_calls)
@@ -389,6 +435,7 @@ def chat_completions():
         max_repairs=MAX_REPAIRS,
     )
     parsed = _sanitize_parsed_response(parsed)
+    parsed = _enforce_tool_password(parsed)
 
     meta["turns"] = int(meta.get("turns", 0)) + 1
     _post_turn_housekeeping(session_id, provider, meta)
@@ -442,7 +489,7 @@ def _content_delta(completion_id: str, created: int, model: str, content: str) -
         "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}]
     }) + "\n\n"
 
-def _tool_calls_once(completion_id: str, created: int, model: str, tool_calls: list) -> str:
+def _tools_delta(completion_id: str, created: int, model: str, tool_calls: list) -> str:
     return "data: " + json.dumps({
         "id": completion_id,
         "object": "chat.completion.chunk",

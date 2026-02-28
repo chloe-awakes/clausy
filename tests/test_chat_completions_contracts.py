@@ -36,11 +36,14 @@ class FakeProvider:
         return "[data-testid='stop']"
 
 
-def _post_chat(client, payload):
+def _post_chat(client, payload, headers=None):
+    merged_headers = {"X-Clausy-Session": "test-session"}
+    if headers:
+        merged_headers.update(headers)
     return client.post(
         "/v1/chat/completions",
         json=payload,
-        headers={"X-Clausy-Session": "test-session"},
+        headers=merged_headers,
     )
 
 
@@ -116,6 +119,57 @@ def test_tool_call_passthrough_shape_preserved_non_stream(configure_server, tool
     assert args_obj == {"command": "ls -la", "meta": {"cwd": "/tmp"}}
 
 
+@pytest.mark.contract
+def test_tool_calls_blocked_without_password_when_enabled(configure_server, tools_reply_json):
+    provider = FakeProvider(non_stream_reply=tools_reply_json)
+    client = configure_server(
+        provider_name="chatgpt",
+        providers={"chatgpt": provider},
+        tool_password="topsecret",
+    )
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "run tool"}],
+        },
+    )
+
+    body = resp.get_json()
+    msg = body["choices"][0]["message"]
+    assert resp.status_code == 200
+    assert body["choices"][0]["finish_reason"] == "stop"
+    assert msg.get("tool_calls") is None
+    assert "password-protected" in msg.get("content", "")
+
+
+@pytest.mark.contract
+def test_tool_calls_allowed_with_correct_password_header(configure_server, tools_reply_json):
+    provider = FakeProvider(non_stream_reply=tools_reply_json)
+    client = configure_server(
+        provider_name="chatgpt",
+        providers={"chatgpt": provider},
+        tool_password="topsecret",
+    )
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "run tool"}],
+        },
+        headers={"X-Clausy-Tool-Password": "topsecret"},
+    )
+
+    body = resp.get_json()
+    assert resp.status_code == 200
+    assert body["choices"][0]["finish_reason"] == "tool_calls"
+    assert body["choices"][0]["message"]["tool_calls"]
+
+
 @pytest.mark.filtering
 def test_filtering_non_stream_content_and_tools(configure_server):
     secret = "sk-abcdef1234567890"
@@ -155,6 +209,31 @@ def test_filtering_non_stream_content_and_tools(configure_server):
     assert secret not in tool_args
     assert "toxic" not in tool_args.lower()
     assert "[CENSORED]" in tool_args
+
+
+@pytest.mark.contract
+def test_stream_tool_calls_blocked_without_password(configure_server, tools_reply_json):
+    provider = FakeProvider(stream_steps=[tools_reply_json])
+    client = configure_server(
+        provider_name="chatgpt",
+        providers={"chatgpt": provider},
+        tool_password="topsecret",
+    )
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": True,
+            "messages": [{"role": "user", "content": "run tool"}],
+        },
+    )
+
+    payload = resp.data.decode("utf-8")
+    assert resp.status_code == 200
+    assert "password-protected" in payload
+    assert '"finish_reason": "tool_calls"' not in payload
+    assert "data: [DONE]" in payload
 
 
 @pytest.mark.filtering

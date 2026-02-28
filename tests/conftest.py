@@ -104,7 +104,15 @@ def make_profanity_filter():
 
 @pytest.fixture
 def configure_server(monkeypatch, make_secret_filter, make_profanity_filter):
-    def _configure(*, provider_name: str, providers: dict[str, FakeProvider], known_secrets: set[str] | None = None, bad_words: tuple[str, ...] = ()):  # noqa: E501
+    def _configure(
+        *,
+        provider_name: str,
+        providers: dict[str, FakeProvider],
+        known_secrets: set[str] | None = None,
+        bad_words: tuple[str, ...] = (),
+        tool_password: str = "",
+        tool_password_header: str = "X-Clausy-Tool-Password",
+    ):
         providers_by_session = {"test-session": providers[provider_name]}
 
         class _Registry:
@@ -119,6 +127,13 @@ def configure_server(monkeypatch, make_secret_filter, make_profanity_filter):
         monkeypatch.setattr(server, "browser", FakeBrowser(providers_by_session))
         monkeypatch.setattr(server, "secret_filter", make_secret_filter(known_secrets or set()))
         monkeypatch.setattr(server, "profanity_filter", make_profanity_filter(*bad_words) if bad_words else ProfanityFilter(ProfanityFilterConfig(mode="off")))
+        monkeypatch.setattr(server, "TOOL_PASSWORD", tool_password)
+        monkeypatch.setattr(server, "TOOL_PASSWORD_HEADER", tool_password_header)
+        monkeypatch.setattr(
+            server,
+            "TOOL_PASSWORD_MESSAGE",
+            "Tool execution is password-protected. Provide a valid tool password to continue.",
+        )
         monkeypatch.setattr(server.time, "sleep", lambda _x: None)
         server._session_meta.clear()
         return server.app.test_client()
