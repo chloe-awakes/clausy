@@ -19,7 +19,7 @@
 
 Planned:
 
-- [ ] child-safe / bad-word filtering
+- [x] child-safe / bad-word filtering
 - [ ] keyword alerts (email / telegram)
 - [ ] password-protected tool execution
 

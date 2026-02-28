@@ -198,6 +198,10 @@ Environment variables:
 - `CLAUSY_MAX_REPAIRS` (default `2`)
 - `CLAUSY_RESET_TURNS` (default `20`)
 - `CLAUSY_RESET_SUMMARY_MAX_CHARS` (default `1500`)
+- `CLAUSY_BADWORD_FILTER_MODE` (`off|mask|block`, default `off`)
+- `CLAUSY_BADWORD_WORDS` (comma-separated words, default empty)
+- `CLAUSY_BADWORD_REPLACEMENT` (default `[CENSORED]`)
+- `CLAUSY_BADWORD_BLOCK_MESSAGE` (default `Content blocked by safety filter.`)
 
 ---
 
@@ -238,6 +242,17 @@ If a stream ends while holding more than half of a known secret prefix, Clausy e
 ```
 [FILTERED_PARTIAL_SECRET_FLUSH]
 ```
+
+### Child-safe / bad-word filtering
+
+Optional second-stage text filtering can mask or block configured words in outbound responses and web-search snippets.
+
+Set:
+
+- `CLAUSY_BADWORD_FILTER_MODE=off|mask|block`
+- `CLAUSY_BADWORD_WORDS=word1,word2,word3`
+- `CLAUSY_BADWORD_REPLACEMENT=[CENSORED]` (mask mode)
+- `CLAUSY_BADWORD_BLOCK_MESSAGE=Content blocked by safety filter.` (block mode)
 
 ---
 

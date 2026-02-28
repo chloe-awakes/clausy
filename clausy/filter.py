@@ -243,6 +243,15 @@ class FilterConfig:
     max_tail: int = 32_768
     enable_prefix_patterns: bool = False  # paranoia mode
 
+
+@dataclass
+class ProfanityFilterConfig:
+    mode: str = "off"  # off|mask|block
+    words: Tuple[str, ...] = ()
+    replacement: str = "[CENSORED]"
+    block_message: str = "Content blocked by safety filter."
+
+
 def load_filter_config_from_env() -> FilterConfig:
     mode = os.environ.get("CLAUSY_FILTER_MODE", "smart").strip().lower()
     scan_openclaw = os.environ.get("CLAUSY_FILTER_SCAN_OPENCLAW", "1").strip() not in ("0", "false", "no")
@@ -262,6 +271,40 @@ def load_filter_config_from_env() -> FilterConfig:
         max_tail=max_tail,
         enable_prefix_patterns=enable_prefix,
     )
+
+
+def load_profanity_filter_config_from_env() -> ProfanityFilterConfig:
+    mode = os.environ.get("CLAUSY_BADWORD_FILTER_MODE", "off").strip().lower()
+    words_env = os.environ.get("CLAUSY_BADWORD_WORDS", "")
+    words = tuple(w.strip().lower() for w in words_env.split(",") if w.strip())
+    replacement = os.environ.get("CLAUSY_BADWORD_REPLACEMENT", "[CENSORED]").strip() or "[CENSORED]"
+    block_message = os.environ.get("CLAUSY_BADWORD_BLOCK_MESSAGE", "Content blocked by safety filter.").strip() or "Content blocked by safety filter."
+    return ProfanityFilterConfig(mode=mode, words=words, replacement=replacement, block_message=block_message)
+
+
+class ProfanityFilter:
+    def __init__(self, cfg: Optional[ProfanityFilterConfig] = None):
+        self.cfg = cfg or load_profanity_filter_config_from_env()
+        self._compiled = self._compile()
+
+    def _compile(self) -> Optional[re.Pattern]:
+        if self.cfg.mode not in ("mask", "block") or not self.cfg.words:
+            return None
+        words = sorted({w for w in self.cfg.words if w}, key=len, reverse=True)
+        if not words:
+            return None
+        escaped = "|".join(re.escape(w) for w in words)
+        return re.compile(rf"\b(?:{escaped})\b", re.IGNORECASE)
+
+    def filter_text(self, text: str) -> str:
+        if self.cfg.mode == "off" or not text or self._compiled is None:
+            return text
+        if self.cfg.mode == "block":
+            if self._compiled.search(text):
+                return self.cfg.block_message
+            return text
+        return self._compiled.sub(self.cfg.replacement, text)
+
 
 class SecretFilter:
     def __init__(self, cfg: Optional[FilterConfig] = None):

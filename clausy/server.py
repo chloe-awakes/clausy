@@ -10,7 +10,12 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from .browser import BrowserPool
 from .providers import ProviderRegistry
 from .output_mode import output_mode_header, parse_or_repair_output, detect_mode, strip_marker
-from .filter import SecretFilter, load_filter_config_from_env
+from .filter import (
+    SecretFilter,
+    load_filter_config_from_env,
+    ProfanityFilter,
+    load_profanity_filter_config_from_env,
+)
 from .websearch import WebSearchService, WebSearchBrowserService
 from .websearch.service import WebSearchError
 
@@ -44,6 +49,9 @@ web_search_browser = WebSearchBrowserService(browser)
 # Secret filtering (optional)
 secret_filter = SecretFilter(load_filter_config_from_env())
 secret_filter.refresh()
+
+# Child-safe / bad-word filtering (optional)
+profanity_filter = ProfanityFilter(load_profanity_filter_config_from_env())
 
 # A single global lock to avoid concurrent Playwright operations across tabs in sync mode.
 _playwright_lock = threading.Lock()
@@ -134,9 +142,9 @@ def web_search_endpoint():
         # Filter inbound text fields to avoid leaking local secrets into results shown to the user
         if secret_filter and secret_filter.enabled:
             for r in result.get("results", []):
-                r["title"] = secret_filter.filter_inbound(r.get("title", ""))
-                r["snippet"] = secret_filter.filter_inbound(r.get("snippet", ""))
-                r["url"] = secret_filter.filter_inbound(r.get("url", ""))
+                r["title"] = profanity_filter.filter_text(secret_filter.filter_inbound(r.get("title", "")))
+                r["snippet"] = profanity_filter.filter_text(secret_filter.filter_inbound(r.get("snippet", "")))
+                r["url"] = profanity_filter.filter_text(secret_filter.filter_inbound(r.get("url", "")))
         return jsonify(result)
     except WebSearchError as e:
         return jsonify({"error": {"message": str(e), "type": "web_search_error"}}), 502
@@ -235,6 +243,7 @@ def chat_completions():
                         try:
                             msg = parsed["choices"][0]["message"]
                             secret_filter.filter_tool_calls_inplace(msg.get("tool_calls"))
+                            _filter_profanity_in_tool_calls(msg.get("tool_calls"))
                         except Exception:
                             pass
 
@@ -272,7 +281,7 @@ def chat_completions():
                             info = None
 
                         if info:
-                            info = secret_filter.filter_inbound(info)
+                            info = profanity_filter.filter_text(secret_filter.filter_inbound(info))
                             yield _content_delta(completion_id, created, model, info)
 
                         # tool_calls are streamed as a single chunk
@@ -293,7 +302,7 @@ def chat_completions():
                     if body:
                         safe, tail, ac_state = secret_filter.stream_split_safe(tail, ac_state, body)
                         if safe:
-                            safe = secret_filter.filter_inbound(safe)
+                            safe = profanity_filter.filter_text(secret_filter.filter_inbound(safe))
                             if safe:
                                 yield _content_delta(completion_id, created, model, safe)
                     continue
@@ -302,7 +311,7 @@ def chat_completions():
                 if decided == "content" and started_streaming_content:
                     safe, tail, ac_state = secret_filter.stream_split_safe(tail, ac_state, delta)
                     if safe:
-                        safe = secret_filter.filter_inbound(safe)
+                        safe = profanity_filter.filter_text(secret_filter.filter_inbound(safe))
                         if safe:
                             yield _content_delta(completion_id, created, model, safe)
 
@@ -335,7 +344,7 @@ def chat_completions():
             if decided == "content":
                 flush, tail, ac_state = secret_filter.stream_flush_tail(tail, ac_state)
                 if flush:
-                    flush = secret_filter.filter_inbound(flush)
+                    flush = profanity_filter.filter_text(secret_filter.filter_inbound(flush))
                     if flush:
                         yield _content_delta(completion_id, created, model, flush)
 
@@ -349,7 +358,7 @@ def chat_completions():
             # If we never decided, just return what we have
             yield _content_begin(completion_id, created, model)
             if prev_full:
-                prev_full = secret_filter.filter_inbound(prev_full)
+                prev_full = profanity_filter.filter_text(secret_filter.filter_inbound(prev_full))
                 yield _content_delta(completion_id, created, model, prev_full)
             yield _finish(completion_id, created, model, "stop")
             yield "data: [DONE]\n\n"
@@ -379,11 +388,41 @@ def chat_completions():
         model_name_for_fallback=model,
         max_repairs=MAX_REPAIRS,
     )
+    parsed = _sanitize_parsed_response(parsed)
 
     meta["turns"] = int(meta.get("turns", 0)) + 1
     _post_turn_housekeeping(session_id, provider, meta)
 
     return jsonify(parsed)
+
+def _filter_profanity_in_tool_calls(tool_calls):
+    if not isinstance(tool_calls, list):
+        return tool_calls
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function")
+        if not isinstance(fn, dict):
+            continue
+        args = fn.get("arguments")
+        if isinstance(args, str) and args:
+            fn["arguments"] = profanity_filter.filter_text(args)
+    return tool_calls
+
+
+def _sanitize_parsed_response(parsed: dict) -> dict:
+    try:
+        msg = parsed.get("choices", [{}])[0].get("message", {})
+        if isinstance(msg.get("content"), str):
+            msg["content"] = profanity_filter.filter_text(secret_filter.filter_inbound(msg["content"]))
+        if isinstance(msg.get("tool_calls"), list):
+            secret_filter.filter_tool_calls_inplace(msg.get("tool_calls"))
+            _filter_profanity_in_tool_calls(msg.get("tool_calls"))
+        parsed["choices"][0]["message"] = msg
+    except Exception:
+        pass
+    return parsed
+
 
 def _content_begin(completion_id: str, created: int, model: str) -> str:
     return "data: " + json.dumps({
