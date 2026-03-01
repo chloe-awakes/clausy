@@ -96,6 +96,25 @@ def _enforce_tool_password(parsed: dict) -> dict:
         pass
     return parsed
 
+
+def _provider_error_response(exc: Exception):
+    msg = str(exc or "")
+    low = msg.lower()
+    authy = any(k in low for k in ("auth", "login", "log in", "sign in", "unauth"))
+    if authy:
+        return jsonify({
+            "error": {
+                "message": "Provider is not authenticated. Please sign in to the configured provider and retry.",
+                "type": "provider_auth_error",
+            }
+        }), 503
+    return jsonify({
+        "error": {
+            "message": f"Provider unavailable: {msg}" if msg else "Provider unavailable",
+            "type": "provider_unavailable_error",
+        }
+    }), 502
+
 def build_backend_prompt(trimmed_request: dict) -> str:
     return output_mode_header() + json.dumps(trimmed_request, ensure_ascii=False)
 
@@ -197,8 +216,11 @@ def chat_completions():
 
     session_id = get_session_id()
     meta = _get_meta(session_id)
-    provider = registry.get(PROVIDER_NAME)
-    page = browser.get_page(session_id)
+    try:
+        provider = registry.get(PROVIDER_NAME)
+        page = browser.get_page(session_id)
+    except Exception as e:
+        return _provider_error_response(e)
 
     trimmed = trim_request(data, meta.get("summary") or "")
     prompt = build_backend_prompt(trimmed)
@@ -207,22 +229,16 @@ def chat_completions():
 
     
     if stream:
+        with _playwright_lock:
+            try:
+                provider.ensure_ready(page)
+                provider.send_prompt(page, prompt)
+            except Exception as e:
+                return _provider_error_response(e)
+
         def generate():
             completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
             created = int(time.time())
-
-            # Send prompt
-            with _playwright_lock:
-                try:
-                    provider.ensure_ready(page)
-                    provider.send_prompt(page, prompt)
-                except Exception as e:
-                    err = f"[Browser/Provider error: {e}]"
-                    yield _content_begin(completion_id, created, model)
-                    yield _content_delta(completion_id, created, model, err)
-                    yield _finish(completion_id, created, model, "stop")
-                    yield "data: [DONE]\n\n"
-                    return
 
             # Buffer until marker decision (<<<CONTENT>>> / <<<TOOLS>>>)
             buffer = ""
@@ -426,14 +442,17 @@ def chat_completions():
             provider.wait_done(page)
             raw_reply = provider.get_last_assistant_text(page)
         except Exception as e:
-            raw_reply = f"[Browser/Provider error: {e}]"
+            return _provider_error_response(e)
 
-    parsed = parse_or_repair_output(
-        raw_text=raw_reply,
-        ask_fn=lambda p: _ask_repair(provider, page, p),
-        model_name_for_fallback=model,
-        max_repairs=MAX_REPAIRS,
-    )
+    try:
+        parsed = parse_or_repair_output(
+            raw_text=raw_reply,
+            ask_fn=lambda p: _ask_repair(provider, page, p),
+            model_name_for_fallback=model,
+            max_repairs=MAX_REPAIRS,
+        )
+    except Exception as e:
+        return _provider_error_response(e)
     parsed = _sanitize_parsed_response(parsed)
     parsed = _enforce_tool_password(parsed)
 

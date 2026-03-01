@@ -7,9 +7,16 @@ import pytest
 
 
 class FakeProvider:
-    def __init__(self, *, non_stream_reply: str | None = None, stream_steps: list[str] | None = None):
+    def __init__(
+        self,
+        *,
+        non_stream_reply: str | None = None,
+        stream_steps: list[str] | None = None,
+        ensure_ready_error: Exception | None = None,
+    ):
         self.non_stream_reply = non_stream_reply
         self.stream_steps = deque(stream_steps or [])
+        self.ensure_ready_error = ensure_ready_error
         self._last = ""
         self.sent_prompts: list[str] = []
         self.ensure_ready_calls = 0
@@ -17,6 +24,8 @@ class FakeProvider:
 
     def ensure_ready(self, _page):
         self.ensure_ready_calls += 1
+        if self.ensure_ready_error is not None:
+            raise self.ensure_ready_error
 
     def send_prompt(self, _page, prompt: str):
         self.sent_prompts.append(prompt)
@@ -289,3 +298,43 @@ def test_provider_routing_uses_selected_provider(configure_server):
     assert resp.status_code == 200
     assert claude.ensure_ready_calls == 1
     assert chatgpt.ensure_ready_calls == 0
+
+
+@pytest.mark.contract
+def test_non_stream_auth_failure_returns_controlled_api_error(configure_server):
+    provider = FakeProvider(ensure_ready_error=RuntimeError("Authentication required: please sign in"))
+    client = configure_server(provider_name="chatgpt", providers={"chatgpt": provider})
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    )
+
+    body = resp.get_json()
+    assert resp.status_code == 503
+    assert body["error"]["type"] == "provider_auth_error"
+    assert "sign in" in body["error"]["message"].lower()
+
+
+@pytest.mark.contract
+def test_stream_auth_failure_returns_controlled_api_error(configure_server):
+    provider = FakeProvider(ensure_ready_error=RuntimeError("Not authenticated, please login"))
+    client = configure_server(provider_name="chatgpt", providers={"chatgpt": provider})
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": True,
+            "messages": [{"role": "user", "content": "hello"}],
+        },
+    )
+
+    body = resp.get_json()
+    assert resp.status_code == 503
+    assert body["error"]["type"] == "provider_auth_error"
+    assert "sign in" in body["error"]["message"].lower()
