@@ -10,6 +10,7 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 
 from .browser import BrowserPool
 from .providers import ProviderRegistry
+from .api_providers import APIProviderRouter, APIProviderError, is_api_provider
 from .output_mode import output_mode_header, parse_or_repair_output, detect_mode, strip_marker
 from .filter import (
     SecretFilter,
@@ -65,6 +66,7 @@ RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "
 # Global state
 browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
 registry = ProviderRegistry.default(chatgpt_url=CHATGPT_URL, claude_url=CLAUDE_URL)
+api_router = APIProviderRouter()
 
 web_search = WebSearchService()
 web_search_browser = WebSearchBrowserService(browser)
@@ -272,11 +274,62 @@ def list_models():
         "data": [{"id": "chatgpt-web", "object": "model", "created": int(time.time()), "owned_by": "local"}]
     })
 
+def _normalize_openai_response(raw: dict, *, model: str) -> dict:
+    out = dict(raw or {})
+    out.setdefault("id", f"chatcmpl-{uuid.uuid4().hex[:12]}")
+    out.setdefault("object", "chat.completion")
+    out.setdefault("created", int(time.time()))
+    out.setdefault("model", model)
+
+    choices = out.get("choices")
+    if not isinstance(choices, list) or not choices:
+        choices = [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}]
+        out["choices"] = choices
+
+    for idx, choice in enumerate(choices):
+        if not isinstance(choice, dict):
+            choices[idx] = {"index": idx, "message": {"role": "assistant", "content": str(choice)}, "finish_reason": "stop"}
+            continue
+        choice.setdefault("index", idx)
+        msg = choice.get("message")
+        if not isinstance(msg, dict):
+            msg = {"role": "assistant", "content": str(msg or "")}
+            choice["message"] = msg
+        msg.setdefault("role", "assistant")
+        msg.setdefault("content", "")
+        choice.setdefault("finish_reason", "stop")
+
+    return out
+
+
 @app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
     data = request.get_json(force=True)
     stream = bool(data.get("stream", False))
     model = data.get("model", "chatgpt-web")
+
+    if is_api_provider(PROVIDER_NAME):
+        try:
+            api_provider = api_router.get(PROVIDER_NAME)
+            if stream:
+                lines = api_provider.chat_completion(data, stream=True)
+
+                def _gen():
+                    for line in lines:
+                        if line:
+                            yield f"{line}\n"
+
+                return Response(stream_with_context(_gen()), mimetype="text/event-stream")
+
+            raw = api_provider.chat_completion(data, stream=False)
+            normalized = _normalize_openai_response(raw, model=model)
+            normalized = _sanitize_parsed_response(normalized)
+            normalized = _enforce_tool_password(normalized)
+            return jsonify(normalized)
+        except APIProviderError as e:
+            return _provider_error_response(e)
+        except Exception as e:
+            return _provider_error_response(e)
 
     session_id = get_session_id()
     meta = _get_meta(session_id)

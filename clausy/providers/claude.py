@@ -36,7 +36,8 @@ class ClaudeWebProvider(WebChatProvider):
             txt = page.locator("body").inner_text(timeout=1000)
         except Exception:
             return False
-        return ("Log in" in txt) or ("Sign in" in txt) or ("Sign up" in txt) or ("Anmelden" in txt)
+        txt_low = (txt or "").lower()
+        return any(k in txt_low for k in ("log in", "sign in", "sign up", "anmelden", "einloggen", "continue with"))
 
     def _find_input(self, page):
         # Prefer accessible role textbox
