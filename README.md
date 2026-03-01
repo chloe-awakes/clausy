@@ -242,6 +242,13 @@ Environment variables:
 - `CLAUSY_BADWORD_WORDS` (comma-separated words, default empty)
 - `CLAUSY_BADWORD_REPLACEMENT` (default `[CENSORED]`)
 - `CLAUSY_BADWORD_BLOCK_MESSAGE` (default `Content blocked by safety filter.`)
+- `CLAUSY_KEYWORD_ALERTS_ENABLED` (`1|0`, default `0`)
+- `CLAUSY_KEYWORD_ALERTS_KEYWORDS` (comma-separated keywords)
+- `CLAUSY_KEYWORD_ALERTS_CASE_SENSITIVE` (`1|0`, default `0`)
+- `CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS` (default `300`)
+- `CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW` (default `1`)
+- `CLAUSY_ALERT_TELEGRAM_BOT_TOKEN`, `CLAUSY_ALERT_TELEGRAM_CHAT_ID`, `CLAUSY_ALERT_TELEGRAM_API_BASE`
+- `CLAUSY_ALERT_EMAIL_SMTP_HOST`, `CLAUSY_ALERT_EMAIL_SMTP_PORT`, `CLAUSY_ALERT_EMAIL_USERNAME`, `CLAUSY_ALERT_EMAIL_PASSWORD`, `CLAUSY_ALERT_EMAIL_FROM`, `CLAUSY_ALERT_EMAIL_TO`, `CLAUSY_ALERT_EMAIL_STARTTLS`
 
 ---
 
@@ -293,6 +300,36 @@ Set:
 - `CLAUSY_BADWORD_WORDS=word1,word2,word3`
 - `CLAUSY_BADWORD_REPLACEMENT=[CENSORED]` (mask mode)
 - `CLAUSY_BADWORD_BLOCK_MESSAGE=Content blocked by safety filter.` (block mode)
+
+### Keyword alerts (optional)
+
+Clausy can notify operators when configured keywords appear in user input, assistant output, or tool-call payloads.
+
+Set:
+
+- `CLAUSY_KEYWORD_ALERTS_ENABLED=1`
+- `CLAUSY_KEYWORD_ALERTS_KEYWORDS=token,password,secret`
+- `CLAUSY_KEYWORD_ALERTS_CASE_SENSITIVE=0`
+- `CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS=300`
+- `CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW=1`
+
+Telegram channel:
+
+- `CLAUSY_ALERT_TELEGRAM_BOT_TOKEN=...`
+- `CLAUSY_ALERT_TELEGRAM_CHAT_ID=...`
+- `CLAUSY_ALERT_TELEGRAM_API_BASE=https://api.telegram.org` (optional)
+
+Email channel:
+
+- `CLAUSY_ALERT_EMAIL_SMTP_HOST=smtp.example.com`
+- `CLAUSY_ALERT_EMAIL_SMTP_PORT=587`
+- `CLAUSY_ALERT_EMAIL_USERNAME=...`
+- `CLAUSY_ALERT_EMAIL_PASSWORD=...`
+- `CLAUSY_ALERT_EMAIL_FROM=clausy@example.com`
+- `CLAUSY_ALERT_EMAIL_TO=ops@example.com,security@example.com`
+- `CLAUSY_ALERT_EMAIL_STARTTLS=1`
+
+Alert transport failures are swallowed and logged so `/v1/chat/completions` responses are never blocked by notifier issues.
 
 ---
 

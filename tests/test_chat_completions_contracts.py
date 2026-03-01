@@ -338,3 +338,32 @@ def test_stream_auth_failure_returns_controlled_api_error(configure_server):
     assert resp.status_code == 503
     assert body["error"]["type"] == "provider_auth_error"
     assert "sign in" in body["error"]["message"].lower()
+
+
+@pytest.mark.contract
+def test_alert_transport_failure_does_not_break_non_stream_response(configure_server, monkeypatch):
+    provider = FakeProvider(non_stream_reply="<<<CONTENT>>>\nall good")
+    client = configure_server(provider_name="chatgpt", providers={"chatgpt": provider})
+
+    import clausy.server as server
+
+    class _BadDispatcher:
+        def send(self, _alert):
+            raise RuntimeError("transport down")
+
+    monkeypatch.setattr(server, "keyword_alert_config", type("C", (), {"enabled": True})())
+    monkeypatch.setattr(server, "keyword_detector", type("D", (), {"match": lambda self, _t: ["token"]})())
+    monkeypatch.setattr(server, "alert_rate_limiter", type("L", (), {"should_send": lambda self, *_a, **_k: True})())
+    monkeypatch.setattr(server, "alert_dispatcher", _BadDispatcher())
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "token here"}],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["choices"][0]["message"]["content"] == "all good"

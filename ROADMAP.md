@@ -20,8 +20,8 @@
 Planned:
 
 - [x] child-safe / bad-word filtering
-- [ ] keyword alerts (email / telegram)
-- [ ] password-protected tool execution
+- [x] keyword alerts (email / telegram)
+- [x] password-protected tool execution
 
 ---
 

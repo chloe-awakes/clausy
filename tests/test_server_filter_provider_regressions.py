@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from clausy.filter import FilterConfig, PrefixMatcher, SecretFilter
 from clausy.providers.registry import ProviderRegistry
+import clausy.server as server
 from clausy.server import app
 
 
@@ -54,6 +55,72 @@ class ServerWebSearchRegressionTests(unittest.TestCase):
         body = resp.get_json()
         self.assertEqual(body["provider"], "brave")
         self.assertEqual(len(body["results"]), 1)
+
+
+class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+
+    @patch("clausy.server._trigger_keyword_alerts")
+    @patch("clausy.server._post_turn_housekeeping")
+    @patch("clausy.server._get_meta")
+    @patch("clausy.server._sanitize_parsed_response")
+    @patch("clausy.server.parse_or_repair_output")
+    @patch("clausy.server.browser.get_page")
+    @patch("clausy.server.registry.get")
+    def test_non_stream_emits_request_response_and_tool_alerts(
+        self,
+        mock_registry_get,
+        mock_get_page,
+        mock_parse,
+        mock_sanitize,
+        mock_get_meta,
+        mock_housekeeping,
+        mock_trigger,
+    ):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+        mock_registry_get.return_value = provider
+        mock_get_page.return_value = object()
+        mock_get_meta.return_value = {"turns": 0, "summary": ""}
+        mock_parse.return_value = {
+            "choices": [{"message": {"content": "contains secret", "tool_calls": [{"id": "1"}]}, "finish_reason": "tool_calls"}]
+        }
+        mock_sanitize.side_effect = lambda parsed: parsed
+
+        resp = self.client.post(
+            "/v1/chat/completions",
+            json={"model": "chatgpt-web", "stream": False, "messages": [{"role": "user", "content": "my token here"}]},
+            headers={"X-Clausy-Session": "s1"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        dirs = [c.kwargs.get("direction") for c in mock_trigger.call_args_list]
+        self.assertIn("request", dirs)
+        self.assertIn("response", dirs)
+        self.assertIn("tool_call", dirs)
+
+    def test_trigger_alert_failures_do_not_raise(self):
+        orig_cfg = server.keyword_alert_config
+        orig_detector = server.keyword_detector
+        orig_limiter = server.alert_rate_limiter
+        orig_dispatcher = server.alert_dispatcher
+        try:
+            server.keyword_alert_config = unittest.mock.Mock(enabled=True)
+            server.keyword_detector = unittest.mock.Mock(match=lambda _t: ["token"])
+            server.alert_rate_limiter = unittest.mock.Mock(should_send=lambda *_a, **_k: True)
+
+            class _Bad:
+                def send(self, _alert):
+                    raise RuntimeError("fail")
+
+            server.alert_dispatcher = _Bad()
+            server._trigger_keyword_alerts(session_id="s1", provider="chatgpt", direction="request", text="token")
+        finally:
+            server.keyword_alert_config = orig_cfg
+            server.keyword_detector = orig_detector
+            server.alert_rate_limiter = orig_limiter
+            server.alert_dispatcher = orig_dispatcher
 
 
 if __name__ == "__main__":

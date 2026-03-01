@@ -19,6 +19,15 @@ from .filter import (
 )
 from .websearch import WebSearchService, WebSearchBrowserService
 from .websearch.service import WebSearchError
+from .alerts import (
+    AlertDispatcher,
+    AlertEvent,
+    AlertRateLimiter,
+    EmailNotifier,
+    KeywordDetector,
+    TelegramNotifier,
+    load_keyword_alert_config_from_env,
+)
 
 app = Flask(__name__)
 
@@ -66,6 +75,35 @@ secret_filter.refresh()
 
 # Child-safe / bad-word filtering (optional)
 profanity_filter = ProfanityFilter(load_profanity_filter_config_from_env())
+
+# Keyword alerting (optional)
+keyword_alert_config = load_keyword_alert_config_from_env()
+keyword_detector = KeywordDetector(
+    keyword_alert_config.keywords,
+    case_sensitive=keyword_alert_config.case_sensitive,
+)
+alert_rate_limiter = AlertRateLimiter(
+    window_seconds=keyword_alert_config.window_seconds,
+    max_alerts_per_window=keyword_alert_config.max_alerts_per_window,
+)
+alert_dispatcher = AlertDispatcher(
+    [
+        TelegramNotifier(
+            bot_token=keyword_alert_config.bot_token,
+            chat_id=keyword_alert_config.chat_id,
+            api_base=keyword_alert_config.api_base,
+        ),
+        EmailNotifier(
+            host=keyword_alert_config.host,
+            port=keyword_alert_config.port,
+            username=keyword_alert_config.username,
+            password=keyword_alert_config.password,
+            from_addr=keyword_alert_config.from_addr,
+            to_addrs=keyword_alert_config.to_addrs,
+            starttls=keyword_alert_config.starttls,
+        ),
+    ]
+)
 
 # A single global lock to avoid concurrent Playwright operations across tabs in sync mode.
 _playwright_lock = threading.Lock()
@@ -253,7 +291,14 @@ def chat_completions():
     # Filter secrets before sending to the web LLM backend
     prompt = secret_filter.filter_outbound(prompt)
 
-    
+    for req_text in _collect_request_text(data):
+        _trigger_keyword_alerts(
+            session_id=session_id,
+            provider=PROVIDER_NAME,
+            direction="request",
+            text=req_text,
+        )
+
     if stream:
         with _playwright_lock:
             try:
@@ -322,6 +367,13 @@ def chat_completions():
                             msg = parsed["choices"][0]["message"]
                             secret_filter.filter_tool_calls_inplace(msg.get("tool_calls"))
                             _filter_profanity_in_tool_calls(msg.get("tool_calls"))
+                            _tool_payload = json.dumps(msg.get("tool_calls", []), ensure_ascii=False)
+                            _trigger_keyword_alerts(
+                                session_id=session_id,
+                                provider=PROVIDER_NAME,
+                                direction="tool_call",
+                                text=_tool_payload,
+                            )
                         except Exception:
                             pass
 
@@ -430,6 +482,12 @@ def chat_completions():
 
             # Final flush for content mode
             if decided == "content":
+                _trigger_keyword_alerts(
+                    session_id=session_id,
+                    provider=PROVIDER_NAME,
+                    direction="response",
+                    text=strip_marker(prev_full or ""),
+                )
                 flush, tail, ac_state = secret_filter.stream_flush_tail(tail, ac_state)
                 if flush:
                     flush = profanity_filter.filter_text(secret_filter.filter_inbound(flush))
@@ -444,6 +502,12 @@ def chat_completions():
                 return
 
             # If we never decided, just return what we have
+            _trigger_keyword_alerts(
+                session_id=session_id,
+                provider=PROVIDER_NAME,
+                direction="response",
+                text=prev_full or "",
+            )
             yield _content_begin(completion_id, created, model)
             if prev_full:
                 prev_full = profanity_filter.filter_text(secret_filter.filter_inbound(prev_full))
@@ -482,6 +546,20 @@ def chat_completions():
     parsed = _sanitize_parsed_response(parsed)
     parsed = _enforce_tool_password(parsed)
 
+    response_text, tool_payload = _collect_response_text(parsed)
+    _trigger_keyword_alerts(
+        session_id=session_id,
+        provider=PROVIDER_NAME,
+        direction="response",
+        text=response_text,
+    )
+    _trigger_keyword_alerts(
+        session_id=session_id,
+        provider=PROVIDER_NAME,
+        direction="tool_call",
+        text=tool_payload,
+    )
+
     meta["turns"] = int(meta.get("turns", 0)) + 1
     _post_turn_housekeeping(session_id, provider, meta)
 
@@ -514,6 +592,59 @@ def _sanitize_parsed_response(parsed: dict) -> dict:
     except Exception:
         pass
     return parsed
+
+
+def _excerpt(text: str, limit: int = 180) -> str:
+    text = (text or "").replace("\n", " ").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
+def _trigger_keyword_alerts(*, session_id: str, provider: str, direction: str, text: str) -> None:
+    if not keyword_alert_config.enabled or not text:
+        return
+    matches = keyword_detector.match(text)
+    if not matches:
+        return
+
+    for keyword in matches:
+        if not alert_rate_limiter.should_send(session_id, keyword):
+            continue
+        try:
+            alert_dispatcher.send(
+                AlertEvent(
+                    session_id=session_id,
+                    provider=provider,
+                    direction=direction,
+                    keyword=keyword,
+                    excerpt=_excerpt(text),
+                )
+            )
+        except Exception:
+            # Alerting must never break API responses.
+            pass
+
+
+def _collect_request_text(data: dict) -> list[str]:
+    out: list[str] = []
+    for msg in data.get("messages", []) or []:
+        content = msg.get("content")
+        if isinstance(content, str):
+            out.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str):
+                    out.append(block.get("text"))
+    return out
+
+
+def _collect_response_text(parsed: dict) -> tuple[str, str]:
+    msg = parsed.get("choices", [{}])[0].get("message", {}) if isinstance(parsed, dict) else {}
+    content = msg.get("content") if isinstance(msg, dict) else None
+    tool_calls = msg.get("tool_calls") if isinstance(msg, dict) else None
+    tool_payload = json.dumps(tool_calls, ensure_ascii=False) if isinstance(tool_calls, list) else ""
+    return (content if isinstance(content, str) else "", tool_payload)
 
 
 def _content_begin(completion_id: str, created: int, model: str) -> str:
