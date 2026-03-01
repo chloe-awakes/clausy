@@ -1,0 +1,16 @@
+services:
+  clausy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clausy
+    command: ["python", "-m", "clausy"]
+    ports:
+      - "5000:5000"
+    environment:
+      CLAUSY_BIND: "0.0.0.0"
+      CLAUSY_PORT: "5000"
+      CLAUSY_PROVIDER: "chatgpt"
+      CLAUSY_CDP_HOST: "host.docker.internal"
+      CLAUSY_CDP_PORT: "9200"
+    restart: unless-stopped

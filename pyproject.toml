@@ -1,9 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "clausy"
 version = "0.1.0"
 description = "OpenAI-compatible gateway to web-based LLM UIs via Playwright"
 requires-python = ">=3.10"
-dependencies = ["flask", "playwright"]
+dependencies = [
+  "flask>=3.0.0",
+  "playwright>=1.45.0",
+  "requests>=2.32.0",
+]
+
+[project.scripts]
+clausy = "clausy.server:main"
+clausy-openclaw-install = "clausy.openclaw_install:main"
+
+[tool.setuptools]
+script-files = ["scripts/openclaw_install_clausy.py"]
+
+[tool.setuptools.packages.find]
+include = ["clausy*"]
 
 [tool.ruff]
 line-length = 100

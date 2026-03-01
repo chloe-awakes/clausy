@@ -127,9 +127,12 @@ Tool calls are collected and returned to the client.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -U pip
+pip install .
 playwright install chromium
 ```
+
+`requirements.txt` is kept as a convenience mirror of the canonical dependencies in `pyproject.toml`.
 
 ---
 
@@ -148,7 +151,7 @@ Log in to the desired AI service once.
 ### 2) Start Clausy
 
 ```bash
-python -m clausy.server
+python -m clausy
 ```
 
 Defaults:
@@ -156,11 +159,33 @@ Defaults:
 - API: `http://127.0.0.1:3108`
 - Provider: ChatGPT Web (`CLAUSY_PROVIDER=chatgpt`)
 
+### Docker
+
+Build and run with Docker:
+
+```bash
+docker build -t clausy .
+docker run --rm -p 5000:5000 \
+  -e CLAUSY_BIND=0.0.0.0 \
+  -e CLAUSY_PORT=5000 \
+  -e CLAUSY_CDP_HOST=host.docker.internal \
+  -e CLAUSY_CDP_PORT=9200 \
+  clausy
+```
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Compose starts service `clausy` on `http://127.0.0.1:5000` and sets sensible defaults for CDP connectivity from container to host Chrome.
+
 ---
 
 ## Quick test
 
-Non-streaming:
+Non-streaming (local default port 3108; use 5000 if running via Docker/Compose):
 
 ```bash
 curl http://127.0.0.1:3108/v1/chat/completions   -H 'Content-Type: application/json'   -H 'X-Clausy-Session: demo'   -d '{
@@ -286,12 +311,19 @@ python scripts/inspect_ui.py --provider claude
 If you use OpenClaw and want Clausy to be added as a provider automatically, run:
 
 ```bash
+# installed CLI (recommended)
+clausy-openclaw-install
+
+# module form
+python -m clausy.openclaw_install
+
+# repo-local compatibility wrapper
 python scripts/openclaw_install_clausy.py
 ```
 
 This will:
 
-- add a `clausy` provider pointing to `http://127.0.0.1:3108/v1`
+- add a `clausy` provider (default base URL `http://127.0.0.1:5000/v1`, override with `--base-url`)
 - set it as the default/primary model
 - keep all existing config and save the previous primary under `models.aliases["previous-primary*"]`
 

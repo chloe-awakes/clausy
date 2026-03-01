@@ -1,0 +1,165 @@
+"""Add Clausy as an OpenAI-compatible provider to OpenClaw config."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sys
+from datetime import datetime
+from typing import Any, Dict, Optional, Tuple
+
+DEFAULT_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
+DEFAULT_BASE_URL = "http://127.0.0.1:5000/v1"
+DEFAULT_MODEL_ID = "chatgpt-web"
+
+
+def _load_json(path: str) -> Dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _atomic_write(path: str, data: Dict[str, Any]) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def _backup(path: str) -> str:
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup = f"{path}.bak.{ts}"
+    shutil.copy2(path, backup)
+    return backup
+
+
+def _ensure_dict(root: Dict[str, Any], key: str) -> Dict[str, Any]:
+    if key not in root or not isinstance(root.get(key), dict):
+        root[key] = {}
+    return root[key]
+
+
+def _unique_alias_name(aliases: Dict[str, Any], base: str = "previous-primary") -> str:
+    if base not in aliases:
+        return base
+    i = 2
+    while f"{base}-{i}" in aliases:
+        i += 1
+    return f"{base}-{i}"
+
+
+def _detect_primary(cfg: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], str]:
+    """Try to detect where OpenClaw stores the 'primary/default' model."""
+    models = cfg.get("models")
+    if isinstance(models, dict):
+        d = models.get("default")
+        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
+            return d, "models.default"
+
+        d = models.get("primary")
+        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
+            return d, "models.primary"
+
+        did = models.get("defaultModel") or models.get("primaryModel")
+        if isinstance(did, str) and did.strip():
+            return {"id": did.strip()}, "models.defaultModel"
+
+    llm = cfg.get("llm")
+    if isinstance(llm, dict):
+        d = llm.get("default") or llm.get("primary")
+        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
+            return d, "llm.default/primary"
+        did = llm.get("defaultModel") or llm.get("primaryModel")
+        if isinstance(did, str) and did.strip():
+            return {"id": did.strip()}, "llm.defaultModel"
+
+    for k in ("default_model", "defaultModel", "primary_model", "primaryModel"):
+        v = cfg.get(k)
+        if isinstance(v, str) and v.strip():
+            return {"id": v.strip()}, k
+        if isinstance(v, dict) and (v.get("provider") or v.get("model") or v.get("id")):
+            return v, k
+
+    return None, ""
+
+
+def _install(
+    cfg: Dict[str, Any],
+    base_url: str,
+    model_id: str,
+    provider_name: str = "clausy",
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Mutate cfg: add provider and set primary/default. Returns (old_primary, new_primary)."""
+    old_primary, _loc = _detect_primary(cfg)
+
+    models = _ensure_dict(cfg, "models")
+    providers = _ensure_dict(models, "providers")
+    aliases = _ensure_dict(models, "aliases")
+
+    if old_primary:
+        old_provider = old_primary.get("provider") if isinstance(old_primary, dict) else None
+        old_id = old_primary.get("id") if isinstance(old_primary, dict) else None
+        if old_provider != provider_name and old_id != provider_name:
+            alias_name = _unique_alias_name(aliases, "previous-primary")
+            aliases[alias_name] = old_primary
+
+    providers[provider_name] = {
+        "type": "openai",
+        "baseURL": base_url,
+        "apiKey": "clausy",
+    }
+
+    new_primary = {"provider": provider_name, "model": model_id}
+    models["default"] = new_primary
+
+    return old_primary or {}, new_primary
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG,
+        help="Path to openclaw.json (default: ~/.openclaw/openclaw.json)",
+    )
+    ap.add_argument(
+        "--base-url",
+        default=DEFAULT_BASE_URL,
+        help="Clausy OpenAI base URL (default: http://127.0.0.1:5000/v1)",
+    )
+    ap.add_argument(
+        "--model",
+        default=DEFAULT_MODEL_ID,
+        help="Model id to set as default (default: chatgpt-web)",
+    )
+    ap.add_argument("--provider", default="clausy", help="Provider name to register (default: clausy)")
+    ap.add_argument("--dry-run", action="store_true", help="Print the updated config without writing")
+    args = ap.parse_args()
+
+    path = os.path.expanduser(args.config)
+    if not os.path.exists(path):
+        print(f"ERROR: config not found: {path}", file=sys.stderr)
+        return 2
+
+    cfg = _load_json(path)
+    old_primary, new_primary = _install(cfg, args.base_url, args.model, args.provider)
+
+    if args.dry_run:
+        print(json.dumps(cfg, indent=2, ensure_ascii=False))
+        return 0
+
+    backup = _backup(path)
+    _atomic_write(path, cfg)
+
+    print(f"Updated: {path}")
+    print(f"Backup:  {backup}")
+    if old_primary:
+        print("Previous primary saved under: models.aliases['previous-primary*']")
+    print(f"New primary: provider='{new_primary['provider']}' model='{new_primary['model']}'")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
