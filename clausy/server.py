@@ -5,6 +5,7 @@ import time
 import uuid
 import threading
 from typing import Dict, Any
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 from flask import Flask, request, jsonify, Response, stream_with_context
 
 from .browser import BrowserPool
@@ -20,6 +21,13 @@ from .websearch import WebSearchService, WebSearchBrowserService
 from .websearch.service import WebSearchError
 
 app = Flask(__name__)
+
+try:
+    APP_VERSION = pkg_version("clausy")
+except PackageNotFoundError:
+    APP_VERSION = "0.0.0-dev"
+
+STARTED_AT = time.time()
 
 # Config
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
@@ -162,8 +170,26 @@ def _get_meta(session_id: str) -> Dict[str, Any]:
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"ok": True, "provider": PROVIDER_NAME})
+    return jsonify(
+        {
+            "ok": True,
+            "service": "clausy",
+            "version": APP_VERSION,
+            "provider": PROVIDER_NAME,
+            "uptime_seconds": int(max(0, time.time() - STARTED_AT)),
+            "tool_password_required": _tool_password_required(),
+        }
+    )
 
+
+@app.route("/ready", methods=["GET"])
+def ready():
+    try:
+        registry.get(PROVIDER_NAME)
+    except Exception as e:
+        return _provider_error_response(e)
+
+    return jsonify({"ok": True, "provider": PROVIDER_NAME})
 
 
 @app.route("/v1/web_search", methods=["POST"])

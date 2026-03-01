@@ -159,6 +159,18 @@ Defaults:
 - API: `http://127.0.0.1:3108`
 - Provider: ChatGPT Web (`CLAUSY_PROVIDER=chatgpt`)
 
+### Ops probes
+
+- Liveness: `GET /health`
+- Readiness: `GET /ready`
+
+Example:
+
+```bash
+curl -s http://127.0.0.1:3108/health | jq
+curl -s http://127.0.0.1:3108/ready | jq
+```
+
 ### Docker
 
 Build and run with Docker:
@@ -360,6 +372,16 @@ Run grouped suites:
 ```
 
 These tests use local fixtures/test doubles and do not require browser login or network access.
+
+### CI
+
+GitHub Actions workflow: `.github/workflows/ci.yml`
+
+It runs on pushes/PRs and performs:
+
+- offline pytest suite
+- package build (`python -m build`)
+- import smoke check
 
 ## Documentation
 
