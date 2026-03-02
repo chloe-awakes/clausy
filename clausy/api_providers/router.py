@@ -7,6 +7,7 @@ from .openai import OpenAIAPIProvider
 from .anthropic import AnthropicAPIProvider
 from .ollama import OllamaAPIProvider
 from .gemini import GeminiAPIProvider
+from .openrouter import OpenRouterAPIProvider
 
 
 class APIProviderRouter:
@@ -28,6 +29,12 @@ class APIProviderRouter:
                 base_url=(os.environ.get("CLAUSY_GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").strip()),
                 api_key=(os.environ.get("CLAUSY_GEMINI_API_KEY", "").strip()),
             ),
+            "openrouter": OpenRouterAPIProvider(
+                base_url=(os.environ.get("CLAUSY_OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip()),
+                api_key=(os.environ.get("CLAUSY_OPENROUTER_API_KEY", "").strip()),
+                site_url=(os.environ.get("CLAUSY_OPENROUTER_SITE_URL", "").strip()),
+                app_name=(os.environ.get("CLAUSY_OPENROUTER_APP_NAME", "").strip()),
+            ),
         }
 
     def get(self, name: str):
@@ -38,4 +45,4 @@ class APIProviderRouter:
 
 
 def is_api_provider(name: str) -> bool:
-    return (name or "").strip().lower() in {"openai", "anthropic", "ollama", "gemini"}
+    return (name or "").strip().lower() in {"openai", "anthropic", "ollama", "gemini", "openrouter"}
