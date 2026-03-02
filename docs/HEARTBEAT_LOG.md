@@ -598,3 +598,32 @@ Developer Experience → **pip package**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 14:45 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Release readiness gate after roadmap completion (no unchecked `ROADMAP.md` items remained).
+
+### Planner
+- Verified `ROADMAP.md` had no unchecked milestones.
+- Selected the next highest-priority unfinished slice as **release-ready validation + evidence consolidation**.
+- Planned cycle:
+  1. Run full automated test gate.
+  2. Run one practical smoke check for primary installer entrypoint.
+  3. Capture evidence in docs/checklists.
+  4. Commit and push `main` if green.
+
+### Executor
+- Added release-ready evidence note: `docs/plans/2026-03-02-release-ready-cycle.md`.
+- Consolidated pending milestone evidence file for keyword alerts into repo history.
+
+### Tester/Evaluator
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **113 passed**
+- Smoke check:
+  - `.venv/bin/python -m clausy.install --dry-run`
+  - **passed** (expected bootstrap command plan emitted)
+
+### Outcome
+- Release-ready validation slice passed and is ready for commit/push.
