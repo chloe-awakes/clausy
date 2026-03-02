@@ -32,6 +32,7 @@ Implemented:
 - [x] ChatGPT Web provider
 - [x] Claude Web provider
 - [x] Grok Web provider
+- [x] optional anonymous-browser toggle (`ALLOW_ANON_BROWSER`) for ChatGPT/Claude/Grok (strict auth remains default)
 
 Planned:
 

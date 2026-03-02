@@ -18,11 +18,12 @@ class ProviderRegistry:
         grok_url: str = "https://grok.com",
         gemini_web_url: str = "https://gemini.google.com",
         perplexity_url: str = "https://www.perplexity.ai",
+        allow_anonymous_browser: bool = False,
     ):
         return ProviderRegistry(providers={
-            "chatgpt": ChatGPTWebProvider(url=chatgpt_url),
-            "claude": ClaudeWebProvider(url=claude_url),
-            "grok": GrokWebProvider(url=grok_url),
+            "chatgpt": ChatGPTWebProvider(url=chatgpt_url, allow_anonymous_browser=allow_anonymous_browser),
+            "claude": ClaudeWebProvider(url=claude_url, allow_anonymous_browser=allow_anonymous_browser),
+            "grok": GrokWebProvider(url=grok_url, allow_anonymous_browser=allow_anonymous_browser),
             "gemini_web": GeminiWebProvider(url=gemini_web_url),
             "perplexity": PerplexityWebProvider(url=perplexity_url),
         })

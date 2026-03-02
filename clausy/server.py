@@ -40,12 +40,26 @@ except PackageNotFoundError:
 STARTED_AT = time.time()
 
 # Config
+
+def _env_flag(raw: str | None, *, default: bool = False) -> bool:
+    if raw is None:
+        return default
+    v = raw.strip().lower()
+    if not v:
+        return default
+    if v in ("1", "true", "yes", "on"):
+        return True
+    if v in ("0", "false", "no", "off"):
+        return False
+    return default
+
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 CHATGPT_URL = os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com").strip()
 CLAUDE_URL = os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai").strip()
 GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
 GEMINI_WEB_URL = os.environ.get("CLAUSY_GEMINI_WEB_URL", "https://gemini.google.com").strip()
 PERPLEXITY_URL = os.environ.get("CLAUSY_PERPLEXITY_URL", "https://www.perplexity.ai").strip()
+ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=False)
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
@@ -74,6 +88,7 @@ registry = ProviderRegistry.default(
     grok_url=GROK_URL,
     gemini_web_url=GEMINI_WEB_URL,
     perplexity_url=PERPLEXITY_URL,
+    allow_anonymous_browser=ALLOW_ANON_BROWSER,
 )
 api_router = APIProviderRouter()
 

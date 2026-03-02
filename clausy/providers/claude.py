@@ -25,8 +25,9 @@ class ClaudeWebProvider(WebChatProvider):
     """
     name = "claude"
 
-    def __init__(self, url: str = "https://claude.ai"):
+    def __init__(self, url: str = "https://claude.ai", allow_anonymous_browser: bool = False):
         self.url = url
+        self.allow_anonymous_browser = allow_anonymous_browser
 
     def _is_login_screen(self, page) -> bool:
         url = page.url or ""
@@ -125,14 +126,20 @@ class ClaudeWebProvider(WebChatProvider):
         if not (page.url or "").startswith(self.url):
             page.goto(self.url, wait_until="domcontentloaded")
 
+        saw_login_screen = False
         for _ in range(3):
-            if self._is_login_screen(page):
-                raise RuntimeError("NEEDS_LOGIN: Claude shows login screen")
-
+            login_screen = self._is_login_screen(page)
             inp = self._find_input(page)
             send = self._find_send_button(page)
             if inp is not None and send is not None:
+                if login_screen and not self.allow_anonymous_browser:
+                    raise RuntimeError("NEEDS_LOGIN: Claude shows login screen")
                 return
+
+            if login_screen:
+                saw_login_screen = True
+                if not self.allow_anonymous_browser:
+                    raise RuntimeError("NEEDS_LOGIN: Claude shows login screen")
 
             try:
                 page.reload(wait_until="domcontentloaded")
@@ -140,6 +147,8 @@ class ClaudeWebProvider(WebChatProvider):
                 pass
             time.sleep(0.8)
 
+        if saw_login_screen:
+            raise RuntimeError("NEEDS_LOGIN: Claude shows login screen")
         raise RuntimeError("UI_NOT_READY: Claude input or send button not found")
 
     def send_prompt(self, page, text: str) -> None:

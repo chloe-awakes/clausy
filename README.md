@@ -231,6 +231,7 @@ Environment variables:
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
 - `CLAUSY_GEMINI_WEB_URL` (default `https://gemini.google.com`)
 - `CLAUSY_PERPLEXITY_URL` (default `https://www.perplexity.ai`)
+- `ALLOW_ANON_BROWSER` (`0|1`, default `0`): when `1`, ChatGPT/Claude/Grok web providers attempt guest/unauth flow first and only return auth error when the page is actually login-blocked.
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
