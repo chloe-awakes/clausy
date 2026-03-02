@@ -9,7 +9,7 @@ from clausy.server import app
 
 class ProviderRegistryRegressionTests(unittest.TestCase):
     def test_get_defaults_to_chatgpt_when_name_missing(self):
-        registry = ProviderRegistry(providers={"chatgpt": object(), "claude": object()})
+        registry = ProviderRegistry(providers={"chatgpt": object(), "claude": object(), "grok": object()})
         self.assertIs(registry.get(""), registry.providers["chatgpt"])
         self.assertIs(registry.get(None), registry.providers["chatgpt"])
 
@@ -17,6 +17,10 @@ class ProviderRegistryRegressionTests(unittest.TestCase):
         registry = ProviderRegistry(providers={"chatgpt": object()})
         with self.assertRaises(KeyError):
             registry.get("unknown")
+
+    def test_default_registry_includes_grok_provider(self):
+        registry = ProviderRegistry.default(chatgpt_url="https://chatgpt.com", claude_url="https://claude.ai", grok_url="https://grok.com")
+        self.assertIn("grok", registry.providers)
 
 
 class SecretFilterStreamingRegressionTests(unittest.TestCase):

@@ -43,6 +43,7 @@ STARTED_AT = time.time()
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 CHATGPT_URL = os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com").strip()
 CLAUDE_URL = os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai").strip()
+GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
@@ -65,7 +66,7 @@ RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "
 
 # Global state
 browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
-registry = ProviderRegistry.default(chatgpt_url=CHATGPT_URL, claude_url=CLAUDE_URL)
+registry = ProviderRegistry.default(chatgpt_url=CHATGPT_URL, claude_url=CLAUDE_URL, grok_url=GROK_URL)
 api_router = APIProviderRouter()
 
 web_search = WebSearchService()
@@ -269,9 +270,19 @@ def web_search_endpoint():
 
 @app.route("/v1/models", methods=["GET"])
 def list_models():
+    provider_models = {
+        "chatgpt": "chatgpt-web",
+        "claude": "claude-web",
+        "grok": "grok-web",
+    }
+    if is_api_provider(PROVIDER_NAME):
+        model_id = f"{PROVIDER_NAME}-api"
+    else:
+        model_id = provider_models.get(PROVIDER_NAME, f"{PROVIDER_NAME}-web")
+
     return jsonify({
         "object": "list",
-        "data": [{"id": "chatgpt-web", "object": "model", "created": int(time.time()), "owned_by": "local"}]
+        "data": [{"id": model_id, "object": "model", "created": int(time.time()), "owned_by": "local"}],
     })
 
 def _normalize_openai_response(raw: dict, *, model: str) -> dict:

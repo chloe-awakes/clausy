@@ -31,11 +31,12 @@ Implemented:
 
 - [x] ChatGPT Web provider
 - [x] Claude Web provider
+- [x] Grok Web provider
 
 Planned:
 
 - [ ] Gemini
-- [ ] Grok
+
 - [ ] Perplexity
 - [ ] Poe
 - [ ] DeepSeek Web

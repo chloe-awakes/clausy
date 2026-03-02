@@ -281,9 +281,10 @@ def test_filtering_stream_content(configure_server):
 def test_provider_routing_uses_selected_provider(configure_server):
     chatgpt = FakeProvider(non_stream_reply="<<<CONTENT>>>\nchatgpt")
     claude = FakeProvider(non_stream_reply="<<<CONTENT>>>\nclaude")
+    grok = FakeProvider(non_stream_reply="<<<CONTENT>>>\ngrok")
     client = configure_server(
         provider_name="claude",
-        providers={"chatgpt": chatgpt, "claude": claude},
+        providers={"chatgpt": chatgpt, "claude": claude, "grok": grok},
     )
 
     resp = _post_chat(
@@ -298,6 +299,32 @@ def test_provider_routing_uses_selected_provider(configure_server):
     assert resp.status_code == 200
     assert claude.ensure_ready_calls == 1
     assert chatgpt.ensure_ready_calls == 0
+    assert grok.ensure_ready_calls == 0
+
+
+@pytest.mark.routing
+def test_provider_routing_supports_grok(configure_server):
+    chatgpt = FakeProvider(non_stream_reply="<<<CONTENT>>>\nchatgpt")
+    claude = FakeProvider(non_stream_reply="<<<CONTENT>>>\nclaude")
+    grok = FakeProvider(non_stream_reply="<<<CONTENT>>>\ngrok")
+    client = configure_server(
+        provider_name="grok",
+        providers={"chatgpt": chatgpt, "claude": claude, "grok": grok},
+    )
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "grok-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "route"}],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert grok.ensure_ready_calls == 1
+    assert chatgpt.ensure_ready_calls == 0
+    assert claude.ensure_ready_calls == 0
 
 
 @pytest.mark.contract

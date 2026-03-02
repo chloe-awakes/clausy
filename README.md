@@ -228,6 +228,7 @@ Environment variables:
 - `CLAUSY_PROVIDER` (default `chatgpt`)
 - `CLAUSY_CHATGPT_URL` (default `https://chatgpt.com`)
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
+- `CLAUSY_GROK_URL` (default `https://grok.com`)
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
@@ -340,12 +341,14 @@ Set:
 ```
 CLAUSY_PROVIDER=chatgpt
 CLAUSY_PROVIDER=claude
+CLAUSY_PROVIDER=grok
 ```
 
 Optional URLs:
 
 - `CLAUSY_CHATGPT_URL=https://chatgpt.com`
 - `CLAUSY_CLAUDE_URL=https://claude.ai`
+- `CLAUSY_GROK_URL=https://grok.com`
 
 To inspect selectors:
 
