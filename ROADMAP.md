@@ -48,8 +48,8 @@ Planned:
 
 Planned:
 
-- [ ] automatic chat rotation
-- [ ] conversation summarization
+- [x] automatic chat rotation
+- [x] conversation summarization
 - [ ] browser restart after N chats
 
 ---

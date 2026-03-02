@@ -92,6 +92,56 @@ class ServerWebSearchRegressionTests(unittest.TestCase):
         self.assertEqual(body["error"]["type"], "invalid_request_error")
 
 
+class ConversationManagementRegressionTests(unittest.TestCase):
+    @patch("clausy.server.browser.get_page")
+    def test_post_turn_housekeeping_skips_below_threshold(self, mock_get_page):
+        provider = unittest.mock.Mock()
+        meta = {"turns": server.RESET_TURNS - 1, "summary": "existing"}
+
+        server._post_turn_housekeeping("s1", provider, meta)
+
+        mock_get_page.assert_not_called()
+        provider.start_new_chat.assert_not_called()
+        self.assertEqual(meta["turns"], server.RESET_TURNS - 1)
+        self.assertEqual(meta["summary"], "existing")
+
+    @patch("clausy.server._summarize_session")
+    @patch("clausy.server.browser.get_page")
+    def test_post_turn_housekeeping_summarizes_rotates_and_resets_counter(self, mock_get_page, mock_summarize):
+        provider = unittest.mock.Mock()
+        page = object()
+        mock_get_page.return_value = page
+        mock_summarize.return_value = "short summary"
+        meta = {"turns": server.RESET_TURNS, "summary": ""}
+
+        server._post_turn_housekeeping("s1", provider, meta)
+
+        self.assertEqual(meta["summary"], "short summary")
+        self.assertEqual(meta["turns"], 0)
+        provider.start_new_chat.assert_called_once_with(page)
+
+    @patch("clausy.server._summarize_session")
+    @patch("clausy.server.browser.reset_page")
+    @patch("clausy.server.browser.get_page")
+    def test_post_turn_housekeeping_falls_back_to_reset_page_when_new_chat_fails(
+        self,
+        mock_get_page,
+        mock_reset_page,
+        mock_summarize,
+    ):
+        provider = unittest.mock.Mock()
+        page = object()
+        mock_get_page.return_value = page
+        mock_summarize.return_value = "summary"
+        provider.start_new_chat.side_effect = RuntimeError("ui changed")
+        meta = {"turns": server.RESET_TURNS, "summary": ""}
+
+        server._post_turn_housekeeping("s1", provider, meta)
+
+        mock_reset_page.assert_called_once_with("s1")
+        self.assertEqual(meta["turns"], 0)
+
+
 class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()

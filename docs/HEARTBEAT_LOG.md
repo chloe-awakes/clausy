@@ -81,3 +81,34 @@ Browser LLM Providers → **DeepSeek Web** integration.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 07:47 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Conversation Management → **automatic chat rotation + conversation summarization hardening**.
+
+### Planner
+- Confirmed next highest-priority unfinished milestone in `ROADMAP.md` is Conversation Management.
+- Chose smallest releasable slice already present in runtime but lacking regression evidence:
+  1. Add regression tests for `_post_turn_housekeeping` threshold gating.
+  2. Add regression tests for summarize + rotate + turn counter reset behavior.
+  3. Add regression test for fallback to `browser.reset_page` when provider "new chat" action fails.
+  4. Mark roadmap checkboxes for proven capabilities.
+
+### Executor
+- Added `ConversationManagementRegressionTests` in `tests/test_server_filter_provider_regressions.py`:
+  - skip housekeeping below threshold,
+  - summarize + rotate + reset counter at threshold,
+  - fallback page reset when `start_new_chat` fails.
+- Updated `ROADMAP.md`:
+  - checked `automatic chat rotation`
+  - checked `conversation summarization`
+  - kept `browser restart after N chats` unchecked.
+
+### Tester/Evaluator
+- Targeted regression run:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+  - **17 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.
