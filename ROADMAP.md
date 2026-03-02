@@ -37,7 +37,7 @@ Planned:
 
 - [x] Gemini
 
-- [ ] Perplexity
+- [x] Perplexity
 - [ ] Poe
 - [ ] DeepSeek Web
 

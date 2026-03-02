@@ -45,6 +45,7 @@ CHATGPT_URL = os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com").strip(
 CLAUDE_URL = os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai").strip()
 GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
 GEMINI_WEB_URL = os.environ.get("CLAUSY_GEMINI_WEB_URL", "https://gemini.google.com").strip()
+PERPLEXITY_URL = os.environ.get("CLAUSY_PERPLEXITY_URL", "https://www.perplexity.ai").strip()
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
@@ -72,6 +73,7 @@ registry = ProviderRegistry.default(
     claude_url=CLAUDE_URL,
     grok_url=GROK_URL,
     gemini_web_url=GEMINI_WEB_URL,
+    perplexity_url=PERPLEXITY_URL,
 )
 api_router = APIProviderRouter()
 
@@ -314,6 +316,7 @@ def list_models():
         "claude": "claude-web",
         "grok": "grok-web",
         "gemini_web": "gemini-web",
+        "perplexity": "perplexity-web",
     }
     if is_api_provider(PROVIDER_NAME):
         model_id = f"{PROVIDER_NAME}-api"

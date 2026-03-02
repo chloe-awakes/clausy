@@ -230,6 +230,7 @@ Environment variables:
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
 - `CLAUSY_GEMINI_WEB_URL` (default `https://gemini.google.com`)
+- `CLAUSY_PERPLEXITY_URL` (default `https://www.perplexity.ai`)
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
@@ -344,6 +345,7 @@ CLAUSY_PROVIDER=chatgpt
 CLAUSY_PROVIDER=claude
 CLAUSY_PROVIDER=grok
 CLAUSY_PROVIDER=gemini_web
+CLAUSY_PROVIDER=perplexity
 ```
 
 ## Providers (API mode)
@@ -372,7 +374,7 @@ Notes:
 - Non-stream responses are normalized into OpenAI Chat Completions JSON shape.
 - Streaming responses are emitted as OpenAI-compatible SSE chunks (`data: ...`, `data: [DONE]`).
 - Ollama mode targets native Ollama `/api/chat` and normalizes to OpenAI-compatible responses.
-- Browser providers (`chatgpt`, `claude`, `grok`) are unchanged.
+- Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`) are unchanged.
 
 Optional URLs:
 
@@ -380,6 +382,7 @@ Optional URLs:
 - `CLAUSY_CLAUDE_URL=https://claude.ai`
 - `CLAUSY_GROK_URL=https://grok.com`
 - `CLAUSY_GEMINI_WEB_URL=https://gemini.google.com`
+- `CLAUSY_PERPLEXITY_URL=https://www.perplexity.ai`
 
 To inspect selectors:
 

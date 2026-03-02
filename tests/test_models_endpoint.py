@@ -11,6 +11,7 @@ import pytest
     [
         ("grok", "grok-web"),
         ("gemini_web", "gemini-web"),
+        ("perplexity", "perplexity-web"),
     ],
 )
 def test_models_endpoint_exposes_web_provider_model(monkeypatch, provider_name, expected_model_id):

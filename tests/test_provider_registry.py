@@ -1,5 +1,6 @@
 from clausy.providers import ProviderRegistry
 from clausy.providers.gemini_web import GeminiWebProvider
+from clausy.providers.perplexity import PerplexityWebProvider
 
 
 def test_default_registry_includes_gemini_web_provider():
@@ -9,3 +10,12 @@ def test_default_registry_includes_gemini_web_provider():
 
     assert isinstance(provider, GeminiWebProvider)
     assert provider.url == "https://gemini.google.com"
+
+
+def test_default_registry_includes_perplexity_provider():
+    registry = ProviderRegistry.default(chatgpt_url="https://chatgpt.com")
+
+    provider = registry.get("perplexity")
+
+    assert isinstance(provider, PerplexityWebProvider)
+    assert provider.url == "https://www.perplexity.ai"
