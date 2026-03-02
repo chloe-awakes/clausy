@@ -107,6 +107,7 @@ TOOL_PASSWORD_MESSAGE = os.environ.get(
 RESET_TURNS = int(os.environ.get("CLAUSY_RESET_TURNS", "20"))
 RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "1500"))
 BROWSER_RESTART_EVERY_RESETS = int(os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_RESETS", "0"))
+BROWSER_RESTART_EVERY_REQUESTS = int(os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_REQUESTS", "0"))
 
 # Realtime event log (in-memory ring buffer)
 EVENT_LOG_ENABLED = _env_flag(os.environ.get("CLAUSY_EVENT_LOG_ENABLED"), default=True)
@@ -169,7 +170,7 @@ alert_dispatcher = AlertDispatcher(
 _playwright_lock = threading.Lock()
 
 # Session meta: keep it in-process (good enough for local use)
-_session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str, resets_since_restart:int}
+_session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str, resets_since_restart:int, requests_since_browser_restart:int}
 _event_log = deque(maxlen=max(1, EVENT_LOG_MAX_ITEMS))
 _event_seq = 0
 _event_lock = threading.Lock()
@@ -373,10 +374,11 @@ def trim_request(data: dict, session_summary: str | None) -> dict:
 def _get_meta(session_id: str) -> Dict[str, Any]:
     meta = _session_meta.get(session_id)
     if meta is None:
-        meta = {"turns": 0, "summary": "", "resets_since_restart": 0}
+        meta = {"turns": 0, "summary": "", "resets_since_restart": 0, "requests_since_browser_restart": 0}
         _session_meta[session_id] = meta
     else:
         meta.setdefault("resets_since_restart", 0)
+        meta.setdefault("requests_since_browser_restart", 0)
     return meta
 
 
@@ -1267,7 +1269,19 @@ def _summarize_session(provider, page) -> str:
 
 def _post_turn_housekeeping(session_id: str, provider, meta: Dict[str, Any]) -> None:
     turns = int(meta.get("turns", 0))
+    requests = int(meta.get("requests_since_browser_restart", 0)) + 1
+    meta["requests_since_browser_restart"] = requests
+    restart_on_request_budget = BROWSER_RESTART_EVERY_REQUESTS > 0 and requests >= BROWSER_RESTART_EVERY_REQUESTS
+
     if turns < RESET_TURNS:
+        if restart_on_request_budget:
+            browser.restart_session(session_id)
+            meta["requests_since_browser_restart"] = 0
+            _log_event(
+                session_id=session_id,
+                event_type="browser_auto_restart",
+                detail={"reason": "request_budget", "threshold": BROWSER_RESTART_EVERY_REQUESTS},
+            )
         return
 
     try:
@@ -1292,9 +1306,26 @@ def _post_turn_housekeeping(session_id: str, provider, meta: Dict[str, Any]) -> 
     resets = int(meta.get("resets_since_restart", 0)) + 1
     meta["resets_since_restart"] = resets
 
+    restarted = False
     if BROWSER_RESTART_EVERY_RESETS > 0 and resets >= BROWSER_RESTART_EVERY_RESETS:
         browser.restart_session(session_id)
         meta["resets_since_restart"] = 0
+        meta["requests_since_browser_restart"] = 0
+        restarted = True
+        _log_event(
+            session_id=session_id,
+            event_type="browser_auto_restart",
+            detail={"reason": "reset_budget", "threshold": BROWSER_RESTART_EVERY_RESETS},
+        )
+
+    if restart_on_request_budget and not restarted:
+        browser.restart_session(session_id)
+        meta["requests_since_browser_restart"] = 0
+        _log_event(
+            session_id=session_id,
+            event_type="browser_auto_restart",
+            detail={"reason": "request_budget", "threshold": BROWSER_RESTART_EVERY_REQUESTS},
+        )
 
 def main():
     print("Starting Clausy server...")

@@ -276,6 +276,7 @@ Environment variables:
 - `CLAUSY_RESET_TURNS` (default `20`)
 - `CLAUSY_RESET_SUMMARY_MAX_CHARS` (default `1500`)
 - `CLAUSY_BROWSER_RESTART_EVERY_RESETS` (default `0`) restarts the browser connection after N conversation resets (`0` disables)
+- `CLAUSY_BROWSER_RESTART_EVERY_REQUESTS` (default `0`) restarts the browser connection after N completed requests per session (`0` disables)
 - `CLAUSY_EVENT_LOG_ENABLED` (`0|1`, default `1`) enables in-memory request/response event logging
 - `CLAUSY_EVENT_LOG_MAX_ITEMS` (default `500`) ring-buffer size for `/v1/events`
 - `CLAUSY_TOOL_PASSWORD` (optional; when set, tool calls are only returned if password header matches)
@@ -421,6 +422,7 @@ Notes:
 - If `CLAUSY_FALLBACK_CHAIN` is set, Clausy retries providers in that order when the primary provider errors (first successful provider wins).
 - If `CLAUSY_COST_AWARE_ROUTING=1`, Clausy reorders the candidate list (`primary + fallback chain`) by `CLAUSY_PROVIDER_COSTS` so cheaper providers are attempted first.
 - If `CLAUSY_PROFILE_BY_PROVIDER` is configured, Clausy automatically switches browser profile directories when provider routing changes (for isolated sessions/cookies per provider).
+- If `CLAUSY_BROWSER_RESTART_EVERY_REQUESTS` is set to `N>0`, Clausy restarts the browser connection automatically after every N completed requests per session (in addition to `CLAUSY_BROWSER_RESTART_EVERY_RESETS`).
 
 Optional URLs:
 

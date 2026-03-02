@@ -441,3 +441,42 @@ Browser Automation → **automatic browser profile switching**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 12:11 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Browser Automation → **automatic browser restart**.
+
+### Planner
+- Confirmed next unchecked high-priority roadmap item was `automatic browser restart`.
+- Planned minimal vertical slice:
+  1. Add explicit auto-restart budget by completed request count.
+  2. Keep existing reset-based restart behavior and make both mechanisms compatible.
+  3. Emit restart events for observability.
+  4. Add regression coverage and update docs/config + roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_BROWSER_RESTART_EVERY_REQUESTS` config,
+  - extended session meta with `requests_since_browser_restart`,
+  - extended `_post_turn_housekeeping(...)` to restart browser after configured per-session request budget,
+  - emits `browser_auto_restart` events for reset/request budget restarts.
+- Added/updated tests in `tests/test_server_filter_provider_regressions.py`:
+  - verifies request counter increments below reset threshold,
+  - verifies request-budget-triggered auto restart,
+  - verifies reset-budget restart resets request counter.
+- Updated docs/config/status:
+  - `.env.example` documents `CLAUSY_BROWSER_RESTART_EVERY_REQUESTS`,
+  - `README.md` documents new restart policy,
+  - `ROADMAP.md` marks `automatic browser restart` complete.
+
+### Tester/Evaluator
+- Targeted regression:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py -k "housekeeping or profile or provider_candidates"`
+  - **9 passed**
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **108 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

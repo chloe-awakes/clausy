@@ -96,7 +96,7 @@ class ConversationManagementRegressionTests(unittest.TestCase):
     @patch("clausy.server.browser.get_page")
     def test_post_turn_housekeeping_skips_below_threshold(self, mock_get_page):
         provider = unittest.mock.Mock()
-        meta = {"turns": server.RESET_TURNS - 1, "summary": "existing"}
+        meta = {"turns": server.RESET_TURNS - 1, "summary": "existing", "requests_since_browser_restart": 0}
 
         server._post_turn_housekeeping("s1", provider, meta)
 
@@ -104,6 +104,7 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         provider.start_new_chat.assert_not_called()
         self.assertEqual(meta["turns"], server.RESET_TURNS - 1)
         self.assertEqual(meta["summary"], "existing")
+        self.assertEqual(meta["requests_since_browser_restart"], 1)
 
     @patch("clausy.server._summarize_session")
     @patch("clausy.server.browser.get_page")
@@ -153,7 +154,7 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         provider = unittest.mock.Mock()
         mock_get_page.return_value = object()
         mock_summarize.return_value = "summary"
-        meta = {"turns": server.RESET_TURNS, "summary": "", "resets_since_restart": 1}
+        meta = {"turns": server.RESET_TURNS, "summary": "", "resets_since_restart": 1, "requests_since_browser_restart": 0}
 
         old_threshold = server.BROWSER_RESTART_EVERY_RESETS
         server.BROWSER_RESTART_EVERY_RESETS = 2
@@ -164,6 +165,27 @@ class ConversationManagementRegressionTests(unittest.TestCase):
 
         mock_restart.assert_called_once_with("s1")
         self.assertEqual(meta["resets_since_restart"], 0)
+        self.assertEqual(meta["requests_since_browser_restart"], 0)
+
+    @patch("clausy.server.browser.get_page")
+    @patch("clausy.server.browser.restart_session")
+    def test_post_turn_housekeeping_restarts_browser_after_configured_requests(self, mock_restart, mock_get_page):
+        provider = unittest.mock.Mock()
+        meta = {"turns": 1, "summary": "", "resets_since_restart": 0, "requests_since_browser_restart": 1}
+
+        old_resets = server.BROWSER_RESTART_EVERY_RESETS
+        old_requests = server.BROWSER_RESTART_EVERY_REQUESTS
+        server.BROWSER_RESTART_EVERY_RESETS = 0
+        server.BROWSER_RESTART_EVERY_REQUESTS = 2
+        try:
+            server._post_turn_housekeeping("s1", provider, meta)
+        finally:
+            server.BROWSER_RESTART_EVERY_RESETS = old_resets
+            server.BROWSER_RESTART_EVERY_REQUESTS = old_requests
+
+        mock_get_page.assert_not_called()
+        mock_restart.assert_called_once_with("s1")
+        self.assertEqual(meta["requests_since_browser_restart"], 0)
 
 
 class ModelSwitchingRegressionTests(unittest.TestCase):
