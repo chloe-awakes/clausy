@@ -269,6 +269,27 @@ def _log_event(*, session_id: str, event_type: str, detail: Dict[str, Any] | Non
         )
 
 
+def _summarize_tool_calls(tool_calls: Any) -> list[Dict[str, Any]]:
+    out: list[Dict[str, Any]] = []
+    if not isinstance(tool_calls, list):
+        return out
+    for tc in tool_calls:
+        if not isinstance(tc, dict):
+            continue
+        fn = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+        args = fn.get("arguments")
+        if not isinstance(args, str):
+            args = ""
+        out.append(
+            {
+                "id": tc.get("id") if isinstance(tc.get("id"), str) else None,
+                "name": fn.get("name") or tc.get("name") or "tool",
+                "arguments_excerpt": _excerpt(args, 180),
+            }
+        )
+    return out
+
+
 @app.route("/v1/events", methods=["GET"])
 def list_events():
     limit_raw = (request.args.get("limit") or "100").strip()
@@ -350,6 +371,51 @@ def list_tool_chains():
     out = out[-limit:]
 
     return jsonify({"object": "list", "data": out, "enabled": EVENT_LOG_ENABLED})
+
+
+@app.route("/v1/tool_traces", methods=["GET"])
+def list_tool_traces():
+    limit_raw = (request.args.get("limit") or "100").strip()
+    since_raw = (request.args.get("since_id") or "").strip()
+    session_filter = (request.args.get("session_id") or "").strip()
+
+    try:
+        limit = max(1, min(int(limit_raw), 1000))
+    except Exception:
+        limit = 100
+
+    try:
+        since_id = int(since_raw) if since_raw else None
+    except Exception:
+        since_id = None
+
+    with _event_lock:
+        items = list(_event_log)
+
+    if since_id is not None:
+        items = [e for e in items if int(e.get("id", 0)) > since_id]
+    if session_filter:
+        items = [e for e in items if e.get("session_id") == session_filter]
+
+    traces = []
+    for e in items:
+        if e.get("type") != "tool_call":
+            continue
+        detail = e.get("detail") if isinstance(e.get("detail"), dict) else {}
+        traces.append(
+            {
+                "event_id": e.get("id"),
+                "ts": e.get("ts"),
+                "session_id": e.get("session_id"),
+                "request_id": detail.get("request_id"),
+                "tool_count": int(detail.get("count") or 0),
+                "calls": detail.get("calls") if isinstance(detail.get("calls"), list) else [],
+            }
+        )
+
+    traces = traces[-limit:]
+    return jsonify({"object": "list", "data": traces, "enabled": EVENT_LOG_ENABLED})
+
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -694,7 +760,11 @@ def chat_completions():
                         _log_event(
                             session_id=session_id,
                             event_type="tool_call",
-                            detail={"request_id": request_id, "count": len(tool_calls)},
+                            detail={
+                                "request_id": request_id,
+                                "count": len(tool_calls),
+                                "calls": _summarize_tool_calls(tool_calls),
+                            },
                         )
                         yield _tools_delta(completion_id, created, model, tool_calls)
                         yield _finish(completion_id, created, model, "tool_calls")
@@ -867,7 +937,11 @@ def chat_completions():
         _log_event(
             session_id=session_id,
             event_type="tool_call",
-            detail={"request_id": request_id, "count": len(tool_calls)},
+            detail={
+                "request_id": request_id,
+                "count": len(tool_calls),
+                "calls": _summarize_tool_calls(tool_calls),
+            },
         )
 
     meta["turns"] = int(meta.get("turns", 0)) + 1

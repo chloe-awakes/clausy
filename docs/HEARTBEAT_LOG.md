@@ -227,3 +227,46 @@ Observability → **tool-chain visualization**.
 
 ### Outcome
 - Milestone slice implemented; validation results determine commit/push readiness.
+
+## 2026-03-02 09:53 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Observability → **execution traces for tool calls**.
+
+### Planner
+- Confirmed remaining unchecked item in Observability was `execution traces for tool calls`.
+- Planned minimal vertical slice:
+  1. Add structured tool-call summaries into emitted `tool_call` events.
+  2. Expose dedicated `GET /v1/tool_traces` endpoint.
+  3. Add regression coverage for event payload shape and endpoint behavior.
+  4. Update docs + roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `_summarize_tool_calls(...)` helper,
+  - enriched `tool_call` event details with `calls` (`id`, `name`, `arguments_excerpt`),
+  - added `GET /v1/tool_traces` endpoint with `limit/since_id/session_id` filters.
+- Added regression tests in `tests/test_server_filter_provider_regressions.py`:
+  - tool traces endpoint expands structured tool-call details,
+  - non-stream completion emits structured call metadata in `tool_call` event.
+- Updated docs/status:
+  - `README.md` documents `/v1/tool_traces`,
+  - `ROADMAP.md` marks `execution traces for tool calls` complete.
+
+### Tester/Evaluator
+- First targeted run (before implementation):
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py -k "tool_traces_endpoint_expands or tool_call_event_contains_structured_calls_for_non_stream"`
+  - **2 failed** (missing endpoint + missing structured calls)
+- Immediate follow-up fix applied in same cycle.
+- Re-run targeted tests:
+  - same command
+  - **2 passed**
+- Regression gate:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+  - **23 passed**
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **92 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

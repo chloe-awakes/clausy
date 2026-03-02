@@ -558,3 +558,11 @@ GET /v1/tool_chains?limit=50&since_id=0&session_id=<optional>
 ```
 
 Each chain is grouped by `request_id` and includes the ordered event timeline.
+
+For flat tool execution traces (one item per `tool_call` event):
+
+```bash
+GET /v1/tool_traces?limit=100&since_id=0&session_id=<optional>
+```
+
+Each trace includes `request_id`, `tool_count`, and structured `calls` with tool name + arguments excerpt.

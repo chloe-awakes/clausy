@@ -244,6 +244,72 @@ class EventLogRegressionTests(unittest.TestCase):
         self.assertEqual([e["type"] for e in chains[0]["events"]], ["request", "tool_call", "response"])
         self.assertEqual(chains[1]["request_id"], "req_b")
 
+    def test_tool_traces_endpoint_expands_tool_call_details(self):
+        server._event_log.clear()
+        server._event_seq = 0
+
+        server._log_event(session_id="s1", event_type="request", detail={"request_id": "req_a"})
+        server._log_event(
+            session_id="s1",
+            event_type="tool_call",
+            detail={
+                "request_id": "req_a",
+                "count": 2,
+                "calls": [
+                    {"id": "call_1", "name": "exec", "arguments_excerpt": '{"command":"ls -la"}'},
+                    {"id": "call_2", "name": "web_search", "arguments_excerpt": '{"query":"status"}'},
+                ],
+            },
+        )
+
+        resp = self.client.get("/v1/tool_traces?session_id=s1")
+        self.assertEqual(resp.status_code, 200)
+
+        traces = resp.get_json()["data"]
+        self.assertEqual(len(traces), 1)
+        self.assertEqual(traces[0]["request_id"], "req_a")
+        self.assertEqual(traces[0]["tool_count"], 2)
+        self.assertEqual([c["name"] for c in traces[0]["calls"]], ["exec", "web_search"])
+
+    def test_tool_call_event_contains_structured_calls_for_non_stream(self):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+
+        with patch("clausy.server.registry.get", return_value=provider), \
+            patch("clausy.server.browser.get_page", return_value=object()), \
+            patch("clausy.server.parse_or_repair_output", return_value={
+                "choices": [{
+                    "message": {
+                        "content": "ok",
+                        "tool_calls": [
+                            {
+                                "id": "call_a",
+                                "type": "function",
+                                "function": {"name": "exec", "arguments": '{"command":"pwd"}'},
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }]
+            }), \
+            patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), \
+            patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), \
+            patch("clausy.server._post_turn_housekeeping"):
+            server._event_log.clear()
+            server._event_seq = 0
+            resp = self.client.post(
+                "/v1/chat/completions",
+                json={"model": "chatgpt-web", "stream": False, "messages": [{"role": "user", "content": "run"}]},
+                headers={"X-Clausy-Session": "trace1"},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        events = self.client.get("/v1/events?session_id=trace1").get_json()["data"]
+        tool_events = [e for e in events if e.get("type") == "tool_call"]
+        self.assertEqual(len(tool_events), 1)
+        self.assertEqual(tool_events[0]["detail"].get("count"), 1)
+        self.assertEqual(tool_events[0]["detail"].get("calls", [])[0].get("name"), "exec")
+
 
 class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):
     def setUp(self):
