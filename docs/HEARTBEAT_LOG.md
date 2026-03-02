@@ -801,3 +801,28 @@ Release-readiness maintenance after roadmap completion (all roadmap milestones r
 ### Outcome
 - Revalidation slice passed with no follow-up fix required.
 - Ready for commit/push.
+
+## 2026-03-02 18:46 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Release-readiness maintenance after roadmap completion (all roadmap milestones remain checked): rerun one-command release gate and refresh evidence.
+
+### Planner
+- Re-validated no unchecked roadmap milestones in `ROADMAP.md`.
+- Planned single-cycle validation via `scripts/release-gate.sh`.
+- Defined immediate follow-up policy: if any stage fails, apply one fix and rerun once.
+
+### Executor
+- Ran `scripts/release-gate.sh`.
+- Added evidence file: `docs/plans/2026-03-02-release-gate-revalidation-cycle-6.md`.
+
+### Tester/Evaluator
+- Full suite: **113 passed**
+- Targeted routing/provider regression checks: **40 passed**
+- Installer smoke check: **passed**
+- Build package: **passed**
+- Release gate result: **PASS**
+
+### Outcome
+- Revalidation slice passed with no follow-up fix required.
+- Ready for commit/push.
