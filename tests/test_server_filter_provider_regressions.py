@@ -142,6 +142,65 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         self.assertEqual(meta["turns"], 0)
 
 
+class EventLogRegressionTests(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+
+    @patch("clausy.server._post_turn_housekeeping")
+    @patch("clausy.server._get_meta")
+    @patch("clausy.server._sanitize_parsed_response")
+    @patch("clausy.server.parse_or_repair_output")
+    @patch("clausy.server.browser.get_page")
+    @patch("clausy.server.registry.get")
+    def test_chat_completion_appends_request_and_response_events(
+        self,
+        mock_registry_get,
+        mock_get_page,
+        mock_parse,
+        mock_sanitize,
+        mock_get_meta,
+        mock_housekeeping,
+    ):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+        mock_registry_get.return_value = provider
+        mock_get_page.return_value = object()
+        mock_get_meta.return_value = {"turns": 0, "summary": ""}
+        mock_parse.return_value = {
+            "choices": [{"message": {"content": "ok", "tool_calls": []}, "finish_reason": "stop"}]
+        }
+        mock_sanitize.side_effect = lambda parsed: parsed
+
+        server._event_log.clear()
+        server._event_seq = 0
+
+        resp = self.client.post(
+            "/v1/chat/completions",
+            json={"model": "chatgpt-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+            headers={"X-Clausy-Session": "ev1"},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+
+        ev_resp = self.client.get("/v1/events?session_id=ev1")
+        self.assertEqual(ev_resp.status_code, 200)
+        events = ev_resp.get_json()["data"]
+        self.assertEqual([e["type"] for e in events], ["request", "response"])
+
+    def test_events_endpoint_supports_since_id_and_limit(self):
+        server._event_log.clear()
+        server._event_seq = 0
+        server._log_event(session_id="s1", event_type="request", detail={})
+        server._log_event(session_id="s1", event_type="response", detail={})
+        server._log_event(session_id="s1", event_type="response", detail={})
+
+        resp = self.client.get("/v1/events?since_id=1&limit=1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()["data"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], 3)
+
+
 class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()

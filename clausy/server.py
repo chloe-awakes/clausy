@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 import threading
+from collections import deque
 from typing import Dict, Any
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 from flask import Flask, request, jsonify, Response, stream_with_context
@@ -82,6 +83,10 @@ TOOL_PASSWORD_MESSAGE = os.environ.get(
 RESET_TURNS = int(os.environ.get("CLAUSY_RESET_TURNS", "20"))
 RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "1500"))
 
+# Realtime event log (in-memory ring buffer)
+EVENT_LOG_ENABLED = _env_flag(os.environ.get("CLAUSY_EVENT_LOG_ENABLED"), default=True)
+EVENT_LOG_MAX_ITEMS = int(os.environ.get("CLAUSY_EVENT_LOG_MAX_ITEMS", "500"))
+
 # Global state
 browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
 registry = ProviderRegistry.default(
@@ -140,6 +145,9 @@ _playwright_lock = threading.Lock()
 
 # Session meta: keep it in-process (good enough for local use)
 _session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str}
+_event_log = deque(maxlen=max(1, EVENT_LOG_MAX_ITEMS))
+_event_seq = 0
+_event_lock = threading.Lock()
 
 def get_session_id() -> str:
     sid = request.headers.get(SESSION_HEADER)
@@ -235,6 +243,51 @@ def _get_meta(session_id: str) -> Dict[str, Any]:
         meta = {"turns": 0, "summary": ""}
         _session_meta[session_id] = meta
     return meta
+
+
+def _log_event(*, session_id: str, event_type: str, detail: Dict[str, Any] | None = None) -> None:
+    if not EVENT_LOG_ENABLED:
+        return
+    global _event_seq
+    with _event_lock:
+        _event_seq += 1
+        _event_log.append(
+            {
+                "id": _event_seq,
+                "ts": int(time.time()),
+                "session_id": session_id,
+                "type": event_type,
+                "detail": detail or {},
+            }
+        )
+
+
+@app.route("/v1/events", methods=["GET"])
+def list_events():
+    limit_raw = (request.args.get("limit") or "100").strip()
+    since_raw = (request.args.get("since_id") or "").strip()
+    session_filter = (request.args.get("session_id") or "").strip()
+
+    try:
+        limit = max(1, min(int(limit_raw), 1000))
+    except Exception:
+        limit = 100
+
+    try:
+        since_id = int(since_raw) if since_raw else None
+    except Exception:
+        since_id = None
+
+    with _event_lock:
+        items = list(_event_log)
+
+    if since_id is not None:
+        items = [e for e in items if int(e.get("id", 0)) > since_id]
+    if session_filter:
+        items = [e for e in items if e.get("session_id") == session_filter]
+
+    items = items[-limit:]
+    return jsonify({"object": "list", "data": items, "enabled": EVENT_LOG_ENABLED})
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -382,6 +435,13 @@ def chat_completions():
     data = request.get_json(force=True)
     stream = bool(data.get("stream", False))
     model = data.get("model", "chatgpt-web")
+    session_id = get_session_id()
+
+    _log_event(
+        session_id=session_id,
+        event_type="request",
+        detail={"provider": PROVIDER_NAME, "stream": stream, "model": model},
+    )
 
     if is_api_provider(PROVIDER_NAME):
         try:
@@ -400,13 +460,22 @@ def chat_completions():
             normalized = _normalize_openai_response(raw, model=model)
             normalized = _sanitize_parsed_response(normalized)
             normalized = _enforce_tool_password(normalized)
+            msg = normalized.get("choices", [{}])[0].get("message", {}) if isinstance(normalized, dict) else {}
+            _log_event(
+                session_id=session_id,
+                event_type="response",
+                detail={
+                    "finish_reason": (normalized.get("choices", [{}])[0].get("finish_reason") if isinstance(normalized, dict) else None),
+                    "has_tool_calls": isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0,
+                    "stream": False,
+                },
+            )
             return jsonify(normalized)
         except APIProviderError as e:
             return _provider_error_response(e)
         except Exception as e:
             return _provider_error_response(e)
 
-    session_id = get_session_id()
     meta = _get_meta(session_id)
     try:
         provider = registry.get(PROVIDER_NAME)
@@ -547,6 +616,11 @@ def chat_completions():
                             yield _content_delta(completion_id, created, model, msg_text)
                             yield _finish(completion_id, created, model, "stop")
                             yield "data: [DONE]\n\n"
+                            _log_event(
+                                session_id=session_id,
+                                event_type="response",
+                                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+                            )
 
                             meta["turns"] = int(meta.get("turns", 0)) + 1
                             _post_turn_housekeeping(session_id, provider, meta)
@@ -556,6 +630,11 @@ def chat_completions():
                         yield _tools_delta(completion_id, created, model, tool_calls)
                         yield _finish(completion_id, created, model, "tool_calls")
                         yield "data: [DONE]\n\n"
+                        _log_event(
+                            session_id=session_id,
+                            event_type="response",
+                            detail={"finish_reason": "tool_calls", "has_tool_calls": True, "stream": True},
+                        )
 
                         meta["turns"] = int(meta.get("turns", 0)) + 1
                         _post_turn_housekeeping(session_id, provider, meta)
@@ -624,6 +703,11 @@ def chat_completions():
 
                 yield _finish(completion_id, created, model, "stop")
                 yield "data: [DONE]\n\n"
+                _log_event(
+                    session_id=session_id,
+                    event_type="response",
+                    detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+                )
 
                 meta["turns"] = int(meta.get("turns", 0)) + 1
                 _post_turn_housekeeping(session_id, provider, meta)
@@ -642,6 +726,11 @@ def chat_completions():
                 yield _content_delta(completion_id, created, model, prev_full)
             yield _finish(completion_id, created, model, "stop")
             yield "data: [DONE]\n\n"
+            _log_event(
+                session_id=session_id,
+                event_type="response",
+                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+            )
 
             meta["turns"] = int(meta.get("turns", 0)) + 1
             _post_turn_housekeeping(session_id, provider, meta)
@@ -686,6 +775,16 @@ def chat_completions():
         provider=PROVIDER_NAME,
         direction="tool_call",
         text=tool_payload,
+    )
+
+    _log_event(
+        session_id=session_id,
+        event_type="response",
+        detail={
+            "finish_reason": parsed.get("choices", [{}])[0].get("finish_reason") if isinstance(parsed, dict) else None,
+            "has_tool_calls": bool(tool_payload),
+            "stream": False,
+        },
     )
 
     meta["turns"] = int(meta.get("turns", 0)) + 1

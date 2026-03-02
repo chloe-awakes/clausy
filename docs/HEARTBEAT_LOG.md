@@ -112,3 +112,40 @@ Conversation Management → **automatic chat rotation + conversation summarizati
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 08:20 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Observability → **realtime agent logging**.
+
+### Planner
+- Confirmed next highest-priority unchecked roadmap item is `realtime agent logging`.
+- Planned smallest shippable slice:
+  1. Add in-memory event ring buffer and config flags.
+  2. Log request/response lifecycle events for `/v1/chat/completions`.
+  3. Expose `GET /v1/events` endpoint with `limit/since_id/session_id` filters.
+  4. Add regression coverage for event emission/query semantics.
+  5. Update docs and roadmap checkbox.
+
+### Executor
+- Added event-log runtime in `clausy/server.py`:
+  - env config `CLAUSY_EVENT_LOG_ENABLED`, `CLAUSY_EVENT_LOG_MAX_ITEMS`
+  - thread-safe ring buffer (`deque`) + monotonic event IDs
+  - helper `_log_event(...)` and endpoint `GET /v1/events`
+- Wired request/response event emission for API and browser-backed `/v1/chat/completions` paths.
+- Updated docs/config:
+  - `.env.example` (new event log vars)
+  - `README.md` (config + endpoint docs)
+  - `ROADMAP.md` (`realtime agent logging` checked)
+- Added tests in `tests/test_server_filter_provider_regressions.py`:
+  - request+response events emitted for non-stream chat completion
+  - `/v1/events` supports `since_id` + `limit` behavior
+
+### Tester/Evaluator
+- Targeted regression run:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+- Full suite run:
+  - `.venv/bin/python -m pytest -q`
+
+### Outcome
+- Milestone slice implemented; validation results below determine commit/push readiness.

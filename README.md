@@ -241,6 +241,8 @@ Environment variables:
 - `CLAUSY_MAX_REPAIRS` (default `2`)
 - `CLAUSY_RESET_TURNS` (default `20`)
 - `CLAUSY_RESET_SUMMARY_MAX_CHARS` (default `1500`)
+- `CLAUSY_EVENT_LOG_ENABLED` (`0|1`, default `1`) enables in-memory request/response event logging
+- `CLAUSY_EVENT_LOG_MAX_ITEMS` (default `500`) ring-buffer size for `/v1/events`
 - `CLAUSY_TOOL_PASSWORD` (optional; when set, tool calls are only returned if password header matches)
 - `CLAUSY_TOOL_PASSWORD_HEADER` (default `X-Clausy-Tool-Password`)
 - `CLAUSY_TOOL_PASSWORD_MESSAGE` (default `Tool execution is password-protected. Provide a valid tool password to continue.`)
@@ -534,3 +536,16 @@ curl http://127.0.0.1:3108/v1/web_search \
 Notes:
 - Browser scraping is inherently less stable (DOM changes, consent screens).
 - Respect provider terms and rate limits.
+
+---
+
+## Realtime event log (optional)
+
+Clausy can expose a lightweight in-memory event feed for observability:
+
+```bash
+GET /v1/events?limit=100&since_id=0&session_id=<optional>
+```
+
+Returns recent `request` / `response` events from a ring buffer.
+Use this for basic local monitoring and troubleshooting.
