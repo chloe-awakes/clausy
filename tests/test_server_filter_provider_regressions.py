@@ -60,6 +60,35 @@ class ServerWebSearchRegressionTests(unittest.TestCase):
         self.assertEqual(body["provider"], "brave")
         self.assertEqual(len(body["results"]), 1)
 
+    @patch("clausy.server.web_search.search")
+    @patch("clausy.server.web_search_browser.search")
+    def test_web_search_endpoint_browser_mode_uses_browser_service(self, mock_browser_search, mock_api_search):
+        mock_browser_search.return_value = [
+            unittest.mock.Mock(title="T", snippet="S", url="https://example.com", source="google_web")
+        ]
+
+        resp = self.client.post(
+            "/v1/web_search",
+            json={"q": "hello", "mode": "browser", "provider": "google_web", "count": 1},
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.get_json()
+        self.assertEqual(body["provider"], "google_web")
+        self.assertEqual(len(body["results"]), 1)
+        mock_browser_search.assert_called_once()
+        mock_api_search.assert_not_called()
+
+    def test_web_search_endpoint_browser_mode_rejects_invalid_provider(self):
+        resp = self.client.post(
+            "/v1/web_search",
+            json={"q": "hello", "mode": "browser", "provider": "brave"},
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        body = resp.get_json()
+        self.assertEqual(body["error"]["type"], "invalid_request_error")
+
 
 class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):
     def setUp(self):

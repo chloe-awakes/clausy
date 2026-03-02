@@ -103,7 +103,7 @@ Planned:
 
 Planned:
 
-- [ ] web search proxy
+- [x] web search proxy
 
 Possible backends:
 

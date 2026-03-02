@@ -254,6 +254,7 @@ def web_search_endpoint():
     if not q:
         return jsonify({"error": {"message": "Missing field: q", "type": "invalid_request_error"}}), 400
 
+    mode = (data.get("mode") or "api").strip().lower()
     provider = (data.get("provider") or None)
     count = data.get("count", 5)
     offset = data.get("offset", 0)
@@ -261,7 +262,39 @@ def web_search_endpoint():
     lang = data.get("lang")
     country = data.get("country")
     try:
-        result = web_search.search(q=q, provider=provider, count=count, offset=offset, safe=safe, lang=lang, country=country)
+        if mode == "browser":
+            browser_provider = (provider or "google_web").strip().lower()
+            if browser_provider not in ("google_web", "brave_web"):
+                return jsonify({"error": {"message": "Browser mode provider must be google_web or brave_web", "type": "invalid_request_error"}}), 400
+            browser_results = web_search_browser.search(
+                q=q,
+                provider=browser_provider,
+                count=count,
+                offset=offset,
+                safe=safe,
+                lang=lang,
+                country=country,
+            )
+            result = {
+                "provider": browser_provider,
+                "mode": "browser",
+                "query": q,
+                "count": max(1, min(int(count), 10)),
+                "offset": max(0, int(offset)),
+                "safe": safe,
+                "results": [
+                    {
+                        "title": getattr(r, "title", "") if not isinstance(r, dict) else r.get("title", ""),
+                        "url": getattr(r, "url", "") if not isinstance(r, dict) else r.get("url", ""),
+                        "snippet": getattr(r, "snippet", "") if not isinstance(r, dict) else r.get("snippet", ""),
+                        "source": getattr(r, "source", browser_provider) if not isinstance(r, dict) else r.get("source", browser_provider),
+                    }
+                    for r in browser_results
+                ],
+            }
+        else:
+            result = web_search.search(q=q, provider=provider, count=count, offset=offset, safe=safe, lang=lang, country=country)
+
         # Filter inbound text fields to avoid leaking local secrets into results shown to the user
         if secret_filter:
             for r in result.get("results", []):
