@@ -4,7 +4,8 @@ import os
 
 from .base import APIProviderError
 from .openai import OpenAIAPIProvider
-from .stubs import AnthropicAPIProvider, OllamaAPIProvider
+from .anthropic import AnthropicAPIProvider
+from .stubs import OllamaAPIProvider
 
 
 class APIProviderRouter:

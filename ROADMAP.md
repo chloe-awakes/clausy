@@ -91,8 +91,8 @@ Already supported:
 
 Planned:
 
-- [ ] OpenAI API
-- [ ] Anthropic API
+- [x] OpenAI API
+- [x] Anthropic API
 - [ ] Gemini API
 - [ ] OpenRouter
 - [ ] Ollama

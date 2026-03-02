@@ -344,6 +344,27 @@ CLAUSY_PROVIDER=claude
 CLAUSY_PROVIDER=grok
 ```
 
+## Providers (API mode)
+
+Clausy can also proxy direct HTTP providers via OpenAI-compatible `/v1/chat/completions`.
+
+Set one of:
+
+```
+CLAUSY_PROVIDER=openai
+CLAUSY_PROVIDER=anthropic
+```
+
+Required env vars:
+
+- OpenAI: `CLAUSY_OPENAI_API_KEY`, optional `CLAUSY_OPENAI_BASE_URL`
+- Anthropic: `CLAUSY_ANTHROPIC_API_KEY`, optional `CLAUSY_ANTHROPIC_BASE_URL`
+
+Notes:
+- Non-stream responses are normalized into OpenAI Chat Completions JSON shape.
+- Streaming responses are emitted as OpenAI-compatible SSE chunks (`data: ...`, `data: [DONE]`).
+- Browser providers (`chatgpt`, `claude`, `grok`) are unchanged.
+
 Optional URLs:
 
 - `CLAUSY_CHATGPT_URL=https://chatgpt.com`

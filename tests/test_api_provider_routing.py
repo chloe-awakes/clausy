@@ -95,3 +95,56 @@ def test_api_provider_error_maps_to_controlled_error(monkeypatch, configure_serv
     assert resp.status_code == 502
     assert body["error"]["type"] == "provider_unavailable_error"
     assert "upstream boom" in body["error"]["message"]
+
+
+@pytest.mark.routing
+def test_anthropic_provider_routes_non_stream_to_api_layer(monkeypatch, configure_server):
+    api = _FakeAPIProvider()
+    client = configure_server(provider_name="anthropic", providers={"anthropic": object()})
+
+    monkeypatch.setattr(server, "api_router", type("R", (), {"get": lambda self, _n: api})())
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "claude-3-5-sonnet-latest",
+            "stream": False,
+            "messages": [{"role": "user", "content": "hi"}],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["choices"][0]["message"]["content"] == "from api"
+    assert len(api.calls) == 1
+    assert api.calls[0][1] is False
+
+
+@pytest.mark.routing
+def test_anthropic_provider_routes_stream_to_api_layer(monkeypatch, configure_server):
+    class _StreamProvider:
+        def chat_completion(self, payload: dict, *, stream: bool):
+            assert stream is True
+            return iter([
+                "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}",
+                "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":null}]}",
+                "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+                "data: [DONE]",
+            ])
+
+    client = configure_server(provider_name="anthropic", providers={"anthropic": object()})
+    monkeypatch.setattr(server, "api_router", type("R", (), {"get": lambda self, _n: _StreamProvider()})())
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "claude-3-5-sonnet-latest",
+            "stream": True,
+            "messages": [{"role": "user", "content": "stream"}],
+        },
+    )
+
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.content_type
+    data = b"".join(resp.response).decode("utf-8")
+    assert "data: [DONE]" in data
+    assert "\"content\":\"hi\"" in data
