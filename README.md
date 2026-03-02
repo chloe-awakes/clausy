@@ -353,16 +353,19 @@ Set one of:
 ```
 CLAUSY_PROVIDER=openai
 CLAUSY_PROVIDER=anthropic
+CLAUSY_PROVIDER=ollama
 ```
 
 Required env vars:
 
 - OpenAI: `CLAUSY_OPENAI_API_KEY`, optional `CLAUSY_OPENAI_BASE_URL`
 - Anthropic: `CLAUSY_ANTHROPIC_API_KEY`, optional `CLAUSY_ANTHROPIC_BASE_URL`
+- Ollama: optional `CLAUSY_OLLAMA_API_KEY`, optional `CLAUSY_OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`)
 
 Notes:
 - Non-stream responses are normalized into OpenAI Chat Completions JSON shape.
 - Streaming responses are emitted as OpenAI-compatible SSE chunks (`data: ...`, `data: [DONE]`).
+- Ollama mode targets native Ollama `/api/chat` and normalizes to OpenAI-compatible responses.
 - Browser providers (`chatgpt`, `claude`, `grok`) are unchanged.
 
 Optional URLs:

@@ -5,7 +5,7 @@ import os
 from .base import APIProviderError
 from .openai import OpenAIAPIProvider
 from .anthropic import AnthropicAPIProvider
-from .stubs import OllamaAPIProvider
+from .ollama import OllamaAPIProvider
 
 
 class APIProviderRouter:
@@ -20,7 +20,7 @@ class APIProviderRouter:
                 api_key=(os.environ.get("CLAUSY_ANTHROPIC_API_KEY", "").strip()),
             ),
             "ollama": OllamaAPIProvider(
-                base_url=(os.environ.get("CLAUSY_OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1").strip()),
+                base_url=(os.environ.get("CLAUSY_OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()),
                 api_key=(os.environ.get("CLAUSY_OLLAMA_API_KEY", "").strip()),
             ),
         }

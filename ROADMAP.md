@@ -95,7 +95,7 @@ Planned:
 - [x] Anthropic API
 - [ ] Gemini API
 - [ ] OpenRouter
-- [ ] Ollama
+- [x] Ollama
 
 ---
 
