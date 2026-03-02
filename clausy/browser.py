@@ -6,8 +6,16 @@ import subprocess
 from typing import Dict
 from playwright.sync_api import sync_playwright
 
+from .browser_runtime import (
+    BrowserRuntimeConfig,
+    build_browser_launch_command,
+    detect_browser_binary,
+    parse_bootstrap_mode,
+)
+
+
 class BrowserPool:
-    """Manages a single Chrome instance (CDP) and per-session pages/tabs."""
+    """Manages a single Chrome/Chromium instance (CDP) and per-session pages/tabs."""
 
     def __init__(self, cdp_host: str, cdp_port: int, profile_dir: str, home_url: str):
         self.cdp_host = cdp_host
@@ -19,7 +27,48 @@ class BrowserPool:
         self._pw = None
         self._browser = None
         self._context = None
-        self._pages: Dict[str, object] = {}  # session_id -> Page
+        self._pages: Dict[str, object] = {}
+        self._bootstrap_proc = None
+
+    def _connect_over_cdp(self):
+        return self._pw.chromium.connect_over_cdp(f"http://{self.cdp_host}:{self.cdp_port}")
+
+    def _wait_for_cdp(self, timeout_s: float = 15.0):
+        deadline = time.time() + max(0.1, timeout_s)
+        last_error = None
+        while time.time() < deadline:
+            try:
+                return self._connect_over_cdp()
+            except Exception as exc:
+                last_error = exc
+                time.sleep(0.5)
+        raise RuntimeError(f"Could not connect to CDP endpoint http://{self.cdp_host}:{self.cdp_port}: {last_error}")
+
+    def _bootstrap_browser(self) -> None:
+        playwright_binary = self._pw.chromium.executable_path
+        browser_binary = detect_browser_binary(playwright_binary=playwright_binary)
+        if not browser_binary:
+            install_hint = "python -m playwright install chromium"
+            raise RuntimeError(
+                "Browser bootstrap requested but no Chrome/Chromium binary was found. "
+                f"Set CLAUSY_BROWSER_BINARY or install Chromium via: {install_hint}"
+            )
+
+        headless = (os.environ.get("CLAUSY_HEADLESS", "0").strip().lower() in {"1", "true", "yes", "on"})
+        extra_args_raw = (os.environ.get("CLAUSY_BROWSER_ARGS") or "").strip()
+        extra_args = [a for a in extra_args_raw.split(" ") if a] if extra_args_raw else []
+        cmd = build_browser_launch_command(
+            browser_binary,
+            BrowserRuntimeConfig(
+                cdp_host=self.cdp_host,
+                cdp_port=self.cdp_port,
+                profile_dir=self.profile_dir,
+                headless=headless,
+                extra_args=extra_args,
+            ),
+        )
+        os.makedirs(self.profile_dir, exist_ok=True)
+        self._bootstrap_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def start(self) -> None:
         with self._lock:
@@ -29,30 +78,29 @@ class BrowserPool:
 
             last_error = None
             try:
-                self._browser = self._pw.chromium.connect_over_cdp(f"http://{self.cdp_host}:{self.cdp_port}")
+                self._browser = self._connect_over_cdp()
             except Exception as e:
                 last_error = e
-                subprocess.Popen([
-                    "open",
-                    "-na", "Google Chrome",
-                    "--args",
-                    f"--remote-debugging-port={self.cdp_port}",
-                    f"--user-data-dir={self.profile_dir}",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                    "--disable-session-crashed-bubble",
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-                for _ in range(30):
-                    time.sleep(0.5)
-                    try:
-                        self._browser = self._pw.chromium.connect_over_cdp(f"http://{self.cdp_host}:{self.cdp_port}")
-                        break
-                    except Exception as e2:
-                        last_error = e2
+                mode = parse_bootstrap_mode(os.environ.get("CLAUSY_BROWSER_BOOTSTRAP"))
+                if mode == "never":
+                    raise RuntimeError(
+                        "Could not connect to Chrome/Chromium over CDP and browser bootstrap is disabled "
+                        "(CLAUSY_BROWSER_BOOTSTRAP=never). Start a browser with --remote-debugging-port "
+                        f"{self.cdp_port} or enable bootstrap. Last error: {last_error}"
+                    ) from e
+                try:
+                    self._bootstrap_browser()
+                    self._browser = self._wait_for_cdp(timeout_s=float(os.environ.get("CLAUSY_CDP_CONNECT_TIMEOUT", "20")))
+                except Exception as bootstrap_error:
+                    raise RuntimeError(
+                        "Failed to connect to CDP and automatic browser bootstrap failed. "
+                        "Set CLAUSY_BROWSER_BOOTSTRAP=never to require external browser, or set "
+                        "CLAUSY_BROWSER_BINARY to a valid Chrome/Chromium binary. "
+                        f"Connection error: {last_error}; bootstrap error: {bootstrap_error}"
+                    ) from bootstrap_error
 
             if not self._browser:
-                raise RuntimeError(f"Could not connect to Chrome over CDP: {last_error}")
+                raise RuntimeError(f"Could not connect to Chrome/Chromium over CDP: {last_error}")
 
             self._context = self._browser.contexts[0] if self._browser.contexts else self._browser.new_context()
 
@@ -71,7 +119,6 @@ class BrowserPool:
             return page
 
     def reset_page(self, session_id: str):
-        """Close existing tab for this session and open a fresh one."""
         if not session_id:
             session_id = "default"
         with self._lock:
@@ -88,7 +135,6 @@ class BrowserPool:
             return page
 
     def restart_session(self, session_id: str):
-        """Restart browser connection for stability and reopen this session tab."""
         if not session_id:
             session_id = "default"
         with self._lock:
@@ -110,14 +156,10 @@ class BrowserPool:
         self.start()
         return self.get_page(session_id)
 
-
-def new_temp_page(self, url: str):
-    """Open a temporary page (tab) for one-off tasks like web search.
-    The caller is responsible for closing the returned page.
-    """
-    with self._lock:
-        if not self._browser:
-            self.start()
-        page = self._context.new_page()
-        page.goto(url, wait_until="domcontentloaded")
-        return page
+    def new_temp_page(self, url: str):
+        with self._lock:
+            if not self._browser:
+                self.start()
+            page = self._context.new_page()
+            page.goto(url, wait_until="domcontentloaded")
+            return page

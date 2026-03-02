@@ -116,9 +116,13 @@ Tool calls are collected and returned to the client.
 ## Requirements
 
 - Python 3.10+
-- Google Chrome (or Chromium) with remote debugging enabled
 - Playwright
 - a logged-in browser session for the target LLM
+
+Clausy now performs runtime browser detection and startup:
+- tries existing CDP endpoint first (`CLAUSY_CDP_HOST`/`CLAUSY_CDP_PORT`)
+- if unavailable, bootstraps Chrome/Chromium automatically by default (`CLAUSY_BROWSER_BOOTSTRAP=auto`)
+- supports explicit binary override with `CLAUSY_BROWSER_BINARY`
 
 ---
 
@@ -138,17 +142,30 @@ playwright install chromium
 
 ## Run
 
-### 1) Start Chrome with remote debugging
+### 1) Start Clausy (auto-bootstrap path)
+
+```bash
+python -m clausy
+```
+
+On a fresh machine, Clausy will try to connect to CDP first, then auto-launch a detected Chrome/Chromium binary if CDP is not already available.
+
+### Optional: manually start Chrome with remote debugging
 
 This creates an isolated Chrome profile in `./profile` (DO NOT commit it).
 
 ```bash
-open -na "Google Chrome" --args   --remote-debugging-port=9200   --user-data-dir=./profile   --no-first-run   --no-default-browser-check   --disable-session-crashed-bubble
+open -na "Google Chrome" --args \
+  --remote-debugging-port=9200 \
+  --user-data-dir=./profile \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-session-crashed-bubble
 ```
 
 Log in to the desired AI service once.
 
-### 2) Start Clausy
+### 2) Verify service
 
 ```bash
 python -m clausy
@@ -173,17 +190,21 @@ curl -s http://127.0.0.1:3108/ready | jq
 
 ### Docker
 
-Build and run with Docker:
+Build and run with Docker (self-contained browser runtime):
 
 ```bash
 docker build -t clausy .
 docker run --rm -p 5000:5000 \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
-  -e CLAUSY_CDP_HOST=host.docker.internal \
+  -e CLAUSY_CDP_HOST=127.0.0.1 \
   -e CLAUSY_CDP_PORT=9200 \
+  -e CLAUSY_BROWSER_BOOTSTRAP=auto \
+  -v "$(pwd)/profile:/app/profile" \
   clausy
 ```
+
+Container startup uses `Xvfb + openbox` to provide a Docker-compatible headful display for Chromium CDP.
 
 ### Docker Compose
 
@@ -191,7 +212,9 @@ docker run --rm -p 5000:5000 \
 docker compose up --build
 ```
 
-Compose starts service `clausy` on `http://127.0.0.1:5000` and sets sensible defaults for CDP connectivity from container to host Chrome.
+Compose starts service `clausy` on `http://127.0.0.1:5000` with in-container headful Chromium runtime (`Xvfb + openbox`).
+
+Operational details: `docs/runbook-browser-runtime.md`.
 
 ---
 
@@ -238,6 +261,12 @@ Environment variables:
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
+- `CLAUSY_BROWSER_BOOTSTRAP` (`auto|always|never`, default `auto`)
+- `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
+- `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
+- `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`)
+- `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, default `0`)
+- `CLAUSY_HEADLESS` (`0|1`, default `0`)
 - `CLAUSY_SESSION_HEADER` (default `X-Clausy-Session`)
 - `CLAUSY_MAX_REPAIRS` (default `2`)
 - `CLAUSY_RESET_TURNS` (default `20`)
