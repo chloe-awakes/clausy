@@ -14,6 +14,7 @@ import pytest
         ("perplexity", "perplexity-web"),
         ("poe", "poe-web"),
         ("deepseek", "deepseek-web"),
+        ("openai", "openai-api"),
     ],
 )
 def test_models_endpoint_exposes_web_provider_model(monkeypatch, provider_name, expected_model_id):

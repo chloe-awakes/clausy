@@ -270,3 +270,52 @@ Observability → **execution traces for tool calls**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 10:24 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Model Control → **automatic model switching**.
+
+### Planner
+- Confirmed first unchecked high-priority roadmap item was `automatic model switching`.
+- Planned minimal vertical slice:
+  1. Add model-id→provider resolver with env toggle.
+  2. Route `/v1/chat/completions` by incoming model when enabled.
+  3. Keep deterministic fallback to configured default provider.
+  4. Add regression coverage for resolver + runtime routing.
+  5. Update docs/config + roadmap status.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_AUTO_MODEL_SWITCH` config (default enabled),
+  - added provider/model maps and `_resolve_provider_name(model)` routing helper,
+  - routed request handling + event logs with resolved provider,
+  - aligned `/v1/models` ids with explicit web/api model maps.
+- Updated tests:
+  - `tests/test_server_filter_provider_regressions.py` adds model-switch resolver + non-stream routing assertions.
+  - `tests/test_models_endpoint.py` includes API model id exposure (`openai-api`).
+- Updated shared fixture:
+  - `tests/conftest.py` gains `auto_model_switch` override for route-contract tests.
+- Updated docs/config/status:
+  - `.env.example` documents `CLAUSY_AUTO_MODEL_SWITCH=1`
+  - `README.md` documents auto-routing behavior
+  - `ROADMAP.md` marks `automatic model switching` complete.
+
+### Tester/Evaluator
+- First regression run:
+  - `.venv/bin/python -m pytest -q tests/test_models_endpoint.py tests/test_server_filter_provider_regressions.py`
+  - **26 passed**
+- Full-suite run:
+  - `.venv/bin/python -m pytest -q`
+  - **1 failed, 94 passed** (`test_provider_routing_uses_selected_provider` expected legacy fixed-provider behavior)
+- Immediate follow-up fix:
+  - Added `auto_model_switch` fixture control + updated that contract test to explicitly disable auto-switch for legacy expectation.
+- Re-run targeted validation:
+  - `.venv/bin/python -m pytest -q tests/test_chat_completions_contracts.py tests/test_models_endpoint.py tests/test_server_filter_provider_regressions.py`
+  - **39 passed**
+- Final full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **95 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

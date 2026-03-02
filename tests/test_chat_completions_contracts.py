@@ -285,6 +285,7 @@ def test_provider_routing_uses_selected_provider(configure_server):
     client = configure_server(
         provider_name="claude",
         providers={"chatgpt": chatgpt, "claude": claude, "grok": grok},
+        auto_model_switch=False,
     )
 
     resp = _post_chat(

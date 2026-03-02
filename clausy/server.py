@@ -55,6 +55,26 @@ def _env_flag(raw: str | None, *, default: bool = False) -> bool:
     return default
 
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
+AUTO_MODEL_SWITCH = _env_flag(os.environ.get("CLAUSY_AUTO_MODEL_SWITCH"), default=True)
+
+WEB_PROVIDER_MODELS = {
+    "chatgpt": "chatgpt-web",
+    "claude": "claude-web",
+    "grok": "grok-web",
+    "gemini_web": "gemini-web",
+    "perplexity": "perplexity-web",
+    "poe": "poe-web",
+    "deepseek": "deepseek-web",
+}
+API_PROVIDER_MODELS = {
+    "openai": "openai-api",
+    "anthropic": "anthropic-api",
+    "ollama": "ollama-api",
+    "gemini": "gemini-api",
+    "openrouter": "openrouter-api",
+}
+MODEL_TO_PROVIDER = {v: k for k, v in {**WEB_PROVIDER_MODELS, **API_PROVIDER_MODELS}.items()}
+
 CHATGPT_URL = os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com").strip()
 CLAUDE_URL = os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai").strip()
 GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
@@ -159,6 +179,20 @@ def get_session_id() -> str:
     if sid:
         return sid.strip()
     return (request.remote_addr or "default").replace(":", "_")
+
+
+def _normalize_model_name(model: str | None) -> str:
+    return (model or "").strip().lower()
+
+
+def _provider_for_model(model: str | None) -> str | None:
+    return MODEL_TO_PROVIDER.get(_normalize_model_name(model))
+
+
+def _resolve_provider_name(model: str | None) -> str:
+    if not AUTO_MODEL_SWITCH:
+        return PROVIDER_NAME
+    return _provider_for_model(model) or PROVIDER_NAME
 
 
 def _tool_password_required() -> bool:
@@ -511,19 +545,11 @@ def web_search_endpoint():
 
 @app.route("/v1/models", methods=["GET"])
 def list_models():
-    provider_models = {
-        "chatgpt": "chatgpt-web",
-        "claude": "claude-web",
-        "grok": "grok-web",
-        "gemini_web": "gemini-web",
-        "perplexity": "perplexity-web",
-        "poe": "poe-web",
-        "deepseek": "deepseek-web",
-    }
-    if is_api_provider(PROVIDER_NAME):
-        model_id = f"{PROVIDER_NAME}-api"
+    provider = PROVIDER_NAME.strip().lower()
+    if is_api_provider(provider):
+        model_id = API_PROVIDER_MODELS.get(provider, f"{provider}-api")
     else:
-        model_id = provider_models.get(PROVIDER_NAME, f"{PROVIDER_NAME}-web")
+        model_id = WEB_PROVIDER_MODELS.get(provider, f"{provider}-web")
 
     return jsonify({
         "object": "list",
@@ -563,18 +589,19 @@ def chat_completions():
     data = request.get_json(force=True)
     stream = bool(data.get("stream", False))
     model = data.get("model", "chatgpt-web")
+    active_provider = _resolve_provider_name(model)
     session_id = get_session_id()
     request_id = _new_request_id()
 
     _log_event(
         session_id=session_id,
         event_type="request",
-        detail={"provider": PROVIDER_NAME, "stream": stream, "model": model, "request_id": request_id},
+        detail={"provider": active_provider, "stream": stream, "model": model, "request_id": request_id},
     )
 
-    if is_api_provider(PROVIDER_NAME):
+    if is_api_provider(active_provider):
         try:
-            api_provider = api_router.get(PROVIDER_NAME)
+            api_provider = api_router.get(active_provider)
             if stream:
                 lines = api_provider.chat_completion(data, stream=True)
 
@@ -608,7 +635,7 @@ def chat_completions():
 
     meta = _get_meta(session_id)
     try:
-        provider = registry.get(PROVIDER_NAME)
+        provider = registry.get(active_provider)
         page = browser.get_page(session_id)
     except Exception as e:
         return _provider_error_response(e)
@@ -621,7 +648,7 @@ def chat_completions():
     for req_text in _collect_request_text(data):
         _trigger_keyword_alerts(
             session_id=session_id,
-            provider=PROVIDER_NAME,
+            provider=active_provider,
             direction="request",
             text=req_text,
         )
@@ -697,7 +724,7 @@ def chat_completions():
                             _tool_payload = json.dumps(msg.get("tool_calls", []), ensure_ascii=False)
                             _trigger_keyword_alerts(
                                 session_id=session_id,
-                                provider=PROVIDER_NAME,
+                                provider=active_provider,
                                 direction="tool_call",
                                 text=_tool_payload,
                             )
@@ -830,7 +857,7 @@ def chat_completions():
             if decided == "content":
                 _trigger_keyword_alerts(
                     session_id=session_id,
-                    provider=PROVIDER_NAME,
+                    provider=active_provider,
                     direction="response",
                     text=strip_marker(prev_full or ""),
                 )
@@ -855,7 +882,7 @@ def chat_completions():
             # If we never decided, just return what we have
             _trigger_keyword_alerts(
                 session_id=session_id,
-                provider=PROVIDER_NAME,
+                provider=active_provider,
                 direction="response",
                 text=prev_full or "",
             )
@@ -912,13 +939,13 @@ def chat_completions():
 
     _trigger_keyword_alerts(
         session_id=session_id,
-        provider=PROVIDER_NAME,
+        provider=active_provider,
         direction="response",
         text=response_text,
     )
     _trigger_keyword_alerts(
         session_id=session_id,
-        provider=PROVIDER_NAME,
+        provider=active_provider,
         direction="tool_call",
         text=tool_payload,
     )

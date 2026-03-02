@@ -226,6 +226,7 @@ Environment variables:
 - `CLAUSY_PORT` (default `3108`)
 - `CLAUSY_BIND` (default `0.0.0.0`)
 - `CLAUSY_PROVIDER` (default `chatgpt`)
+- `CLAUSY_AUTO_MODEL_SWITCH` (`0|1`, default `1`): auto-route each request by incoming model id (for example `claude-web` → Claude provider, `openai-api` → OpenAI API provider)
 - `CLAUSY_CHATGPT_URL` (default `https://chatgpt.com`)
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
@@ -383,6 +384,7 @@ Notes:
 - Streaming responses are emitted as OpenAI-compatible SSE chunks (`data: ...`, `data: [DONE]`).
 - Ollama mode targets native Ollama `/api/chat` and normalizes to OpenAI-compatible responses.
 - Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`, `poe`, `deepseek`) are unchanged.
+- With `CLAUSY_AUTO_MODEL_SWITCH=1`, Clausy can keep one default provider while automatically routing requests by `model` (`chatgpt-web`, `claude-web`, `openai-api`, etc.).
 
 Optional URLs:
 

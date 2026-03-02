@@ -112,6 +112,7 @@ def configure_server(monkeypatch, make_secret_filter, make_profanity_filter):
         bad_words: tuple[str, ...] = (),
         tool_password: str = "",
         tool_password_header: str = "X-Clausy-Tool-Password",
+        auto_model_switch: bool = True,
     ):
         providers_by_session = {"test-session": providers[provider_name]}
 
@@ -123,6 +124,7 @@ def configure_server(monkeypatch, make_secret_filter, make_profanity_filter):
                 return self._p[name]
 
         monkeypatch.setattr(server, "PROVIDER_NAME", provider_name)
+        monkeypatch.setattr(server, "AUTO_MODEL_SWITCH", auto_model_switch)
         monkeypatch.setattr(server, "registry", _Registry(providers))
         monkeypatch.setattr(server, "browser", FakeBrowser(providers_by_session))
         monkeypatch.setattr(server, "secret_filter", make_secret_filter(known_secrets or set()))

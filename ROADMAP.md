@@ -68,7 +68,7 @@ Planned:
 
 Planned:
 
-- [ ] automatic model switching
+- [x] automatic model switching
 - [ ] fallback chains (local → cloud → backup)
 - [ ] cost-aware routing
 

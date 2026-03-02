@@ -166,6 +166,52 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         self.assertEqual(meta["resets_since_restart"], 0)
 
 
+class ModelSwitchingRegressionTests(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+
+    def test_resolve_provider_name_uses_model_mapping_when_enabled(self):
+        old_auto = server.AUTO_MODEL_SWITCH
+        old_provider = server.PROVIDER_NAME
+        try:
+            server.AUTO_MODEL_SWITCH = True
+            server.PROVIDER_NAME = "chatgpt"
+            self.assertEqual(server._resolve_provider_name("claude-web"), "claude")
+            self.assertEqual(server._resolve_provider_name("openai-api"), "openai")
+        finally:
+            server.AUTO_MODEL_SWITCH = old_auto
+            server.PROVIDER_NAME = old_provider
+
+    def test_non_stream_uses_model_selected_provider(self):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+
+        with patch("clausy.server.registry.get", return_value=provider) as mock_registry_get, \
+            patch("clausy.server.browser.get_page", return_value=object()), \
+            patch("clausy.server.parse_or_repair_output", return_value={
+                "choices": [{"message": {"content": "ok", "tool_calls": []}, "finish_reason": "stop"}]
+            }), \
+            patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), \
+            patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), \
+            patch("clausy.server._post_turn_housekeeping"):
+            old_auto = server.AUTO_MODEL_SWITCH
+            old_provider = server.PROVIDER_NAME
+            try:
+                server.AUTO_MODEL_SWITCH = True
+                server.PROVIDER_NAME = "chatgpt"
+                resp = self.client.post(
+                    "/v1/chat/completions",
+                    json={"model": "claude-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"X-Clausy-Session": "switch1"},
+                )
+            finally:
+                server.AUTO_MODEL_SWITCH = old_auto
+                server.PROVIDER_NAME = old_provider
+
+        self.assertEqual(resp.status_code, 200)
+        mock_registry_get.assert_called_once_with("claude")
+
+
 class EventLogRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
