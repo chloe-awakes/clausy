@@ -6,6 +6,7 @@ from .claude import ClaudeWebProvider
 from .grok import GrokWebProvider
 from .gemini_web import GeminiWebProvider
 from .perplexity import PerplexityWebProvider
+from .poe import PoeWebProvider
 
 @dataclass
 class ProviderRegistry:
@@ -18,6 +19,7 @@ class ProviderRegistry:
         grok_url: str = "https://grok.com",
         gemini_web_url: str = "https://gemini.google.com",
         perplexity_url: str = "https://www.perplexity.ai",
+        poe_url: str = "https://poe.com",
         allow_anonymous_browser: bool = False,
     ):
         return ProviderRegistry(providers={
@@ -26,6 +28,7 @@ class ProviderRegistry:
             "grok": GrokWebProvider(url=grok_url, allow_anonymous_browser=allow_anonymous_browser),
             "gemini_web": GeminiWebProvider(url=gemini_web_url),
             "perplexity": PerplexityWebProvider(url=perplexity_url),
+            "poe": PoeWebProvider(url=poe_url),
         })
 
     def get(self, name: str):

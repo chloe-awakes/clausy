@@ -18,9 +18,10 @@ class ProviderRegistryRegressionTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             registry.get("unknown")
 
-    def test_default_registry_includes_grok_provider(self):
+    def test_default_registry_includes_grok_and_poe_providers(self):
         registry = ProviderRegistry.default(chatgpt_url="https://chatgpt.com", claude_url="https://claude.ai", grok_url="https://grok.com")
         self.assertIn("grok", registry.providers)
+        self.assertIn("poe", registry.providers)
 
 
 class SecretFilterStreamingRegressionTests(unittest.TestCase):
