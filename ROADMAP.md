@@ -125,5 +125,5 @@ Completed:
 Planned:
 
 - [x] Docker image
-- [ ] one-command install
+- [x] one-command install
 - [ ] pip package

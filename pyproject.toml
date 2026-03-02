@@ -16,6 +16,7 @@ dependencies = [
 [project.scripts]
 clausy = "clausy.server:main"
 clausy-openclaw-install = "clausy.openclaw_install:main"
+clausy-install = "clausy.install:main"
 
 [tool.setuptools]
 script-files = ["scripts/openclaw_install_clausy.py"]

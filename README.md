@@ -128,6 +128,14 @@ Clausy now performs runtime browser detection and startup:
 
 ## Install
 
+One-command bootstrap (recommended):
+
+```bash
+python -m clausy.install
+```
+
+Equivalent manual steps:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate

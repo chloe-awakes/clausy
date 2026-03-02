@@ -228,6 +228,47 @@ Observability → **tool-chain visualization**.
 ### Outcome
 - Milestone slice implemented; validation results determine commit/push readiness.
 
+## 2026-03-02 13:39 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Developer Experience → **one-command install**.
+
+### Planner
+- Confirmed first remaining unchecked roadmap milestone was `one-command install`.
+- Planned minimal vertical slice:
+  1. Add one-command installer entrypoint.
+  2. Add regression coverage.
+  3. Update docs + roadmap checkbox.
+  4. Run targeted + full validation and fix once immediately if needed.
+
+### Executor
+- Added `clausy/install.py` with one-command bootstrap CLI (`python -m clausy.install`) and options:
+  - `--venv`
+  - `--skip-playwright`
+  - `--dry-run`
+- Added console script entrypoint in `pyproject.toml`:
+  - `clausy-install`
+- Added tests in `tests/test_install_cli.py`.
+- Updated docs/status:
+  - `README.md` install section includes one-command bootstrap.
+  - `ROADMAP.md` marks `one-command install` complete.
+  - Evidence file: `docs/plans/2026-03-02-one-command-install-milestone-cycle.md`.
+
+### Tester/Evaluator
+- First targeted run:
+  - `.venv/bin/python -m pytest -q tests/test_install_cli.py`
+  - **1 failed, 1 passed** (test expectation mismatch)
+- Immediate follow-up fix applied to assertion in `tests/test_install_cli.py`.
+- Re-run targeted suite:
+  - `.venv/bin/python -m pytest -q tests/test_install_cli.py tests/test_models_endpoint.py tests/test_server_filter_provider_regressions.py`
+  - **35 passed**
+- Full suite run:
+  - `.venv/bin/python -m pytest -q`
+  - **111 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.
+
 ## 2026-03-02 09:53 (Europe/Berlin)
 
 ### Milestone selected (highest-priority unfinished)
