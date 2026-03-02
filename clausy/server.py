@@ -150,6 +150,10 @@ _event_log = deque(maxlen=max(1, EVENT_LOG_MAX_ITEMS))
 _event_seq = 0
 _event_lock = threading.Lock()
 
+
+def _new_request_id() -> str:
+    return f"req_{uuid.uuid4().hex[:12]}"
+
 def get_session_id() -> str:
     sid = request.headers.get(SESSION_HEADER)
     if sid:
@@ -291,6 +295,61 @@ def list_events():
 
     items = items[-limit:]
     return jsonify({"object": "list", "data": items, "enabled": EVENT_LOG_ENABLED})
+
+
+@app.route("/v1/tool_chains", methods=["GET"])
+def list_tool_chains():
+    limit_raw = (request.args.get("limit") or "50").strip()
+    since_raw = (request.args.get("since_id") or "").strip()
+    session_filter = (request.args.get("session_id") or "").strip()
+
+    try:
+        limit = max(1, min(int(limit_raw), 500))
+    except Exception:
+        limit = 50
+
+    try:
+        since_id = int(since_raw) if since_raw else None
+    except Exception:
+        since_id = None
+
+    with _event_lock:
+        items = list(_event_log)
+
+    if since_id is not None:
+        items = [e for e in items if int(e.get("id", 0)) > since_id]
+    if session_filter:
+        items = [e for e in items if e.get("session_id") == session_filter]
+
+    chains: Dict[str, Dict[str, Any]] = {}
+    for e in items:
+        detail = e.get("detail") if isinstance(e.get("detail"), dict) else {}
+        req_id = detail.get("request_id")
+        if not isinstance(req_id, str) or not req_id:
+            continue
+        chain = chains.get(req_id)
+        if chain is None:
+            chain = {
+                "request_id": req_id,
+                "session_id": e.get("session_id"),
+                "started_at": e.get("ts"),
+                "events": [],
+            }
+            chains[req_id] = chain
+        chain["events"].append(
+            {
+                "id": e.get("id"),
+                "ts": e.get("ts"),
+                "type": e.get("type"),
+                "detail": detail,
+            }
+        )
+
+    out = list(chains.values())
+    out.sort(key=lambda c: int(c.get("events", [{}])[-1].get("id", 0)))
+    out = out[-limit:]
+
+    return jsonify({"object": "list", "data": out, "enabled": EVENT_LOG_ENABLED})
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -439,11 +498,12 @@ def chat_completions():
     stream = bool(data.get("stream", False))
     model = data.get("model", "chatgpt-web")
     session_id = get_session_id()
+    request_id = _new_request_id()
 
     _log_event(
         session_id=session_id,
         event_type="request",
-        detail={"provider": PROVIDER_NAME, "stream": stream, "model": model},
+        detail={"provider": PROVIDER_NAME, "stream": stream, "model": model, "request_id": request_id},
     )
 
     if is_api_provider(PROVIDER_NAME):
@@ -471,6 +531,7 @@ def chat_completions():
                     "finish_reason": (normalized.get("choices", [{}])[0].get("finish_reason") if isinstance(normalized, dict) else None),
                     "has_tool_calls": isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0,
                     "stream": False,
+                    "request_id": request_id,
                 },
             )
             return jsonify(normalized)
@@ -622,7 +683,7 @@ def chat_completions():
                             _log_event(
                                 session_id=session_id,
                                 event_type="response",
-                                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+                                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True, "request_id": request_id},
                             )
 
                             meta["turns"] = int(meta.get("turns", 0)) + 1
@@ -630,13 +691,18 @@ def chat_completions():
                             return
 
                         # tool_calls are streamed as a single chunk
+                        _log_event(
+                            session_id=session_id,
+                            event_type="tool_call",
+                            detail={"request_id": request_id, "count": len(tool_calls)},
+                        )
                         yield _tools_delta(completion_id, created, model, tool_calls)
                         yield _finish(completion_id, created, model, "tool_calls")
                         yield "data: [DONE]\n\n"
                         _log_event(
                             session_id=session_id,
                             event_type="response",
-                            detail={"finish_reason": "tool_calls", "has_tool_calls": True, "stream": True},
+                            detail={"finish_reason": "tool_calls", "has_tool_calls": True, "stream": True, "request_id": request_id},
                         )
 
                         meta["turns"] = int(meta.get("turns", 0)) + 1
@@ -709,7 +775,7 @@ def chat_completions():
                 _log_event(
                     session_id=session_id,
                     event_type="response",
-                    detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+                    detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True, "request_id": request_id},
                 )
 
                 meta["turns"] = int(meta.get("turns", 0)) + 1
@@ -732,7 +798,7 @@ def chat_completions():
             _log_event(
                 session_id=session_id,
                 event_type="response",
-                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True},
+                detail={"finish_reason": "stop", "has_tool_calls": False, "stream": True, "request_id": request_id},
             )
 
             meta["turns"] = int(meta.get("turns", 0)) + 1
@@ -767,6 +833,13 @@ def chat_completions():
     parsed = _enforce_tool_password(parsed)
 
     response_text, tool_payload = _collect_response_text(parsed)
+    tool_calls = (
+        parsed.get("choices", [{}])[0].get("message", {}).get("tool_calls")
+        if isinstance(parsed, dict)
+        else None
+    )
+    has_tool_calls = isinstance(tool_calls, list) and len(tool_calls) > 0
+
     _trigger_keyword_alerts(
         session_id=session_id,
         provider=PROVIDER_NAME,
@@ -785,10 +858,17 @@ def chat_completions():
         event_type="response",
         detail={
             "finish_reason": parsed.get("choices", [{}])[0].get("finish_reason") if isinstance(parsed, dict) else None,
-            "has_tool_calls": bool(tool_payload),
+            "has_tool_calls": has_tool_calls,
             "stream": False,
+            "request_id": request_id,
         },
     )
+    if has_tool_calls:
+        _log_event(
+            session_id=session_id,
+            event_type="tool_call",
+            detail={"request_id": request_id, "count": len(tool_calls)},
+        )
 
     meta["turns"] = int(meta.get("turns", 0)) + 1
     _post_turn_housekeeping(session_id, provider, meta)

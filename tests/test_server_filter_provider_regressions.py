@@ -210,6 +210,8 @@ class EventLogRegressionTests(unittest.TestCase):
         self.assertEqual(ev_resp.status_code, 200)
         events = ev_resp.get_json()["data"]
         self.assertEqual([e["type"] for e in events], ["request", "response"])
+        self.assertTrue(events[0]["detail"].get("request_id"))
+        self.assertEqual(events[0]["detail"].get("request_id"), events[1]["detail"].get("request_id"))
 
     def test_events_endpoint_supports_since_id_and_limit(self):
         server._event_log.clear()
@@ -223,6 +225,24 @@ class EventLogRegressionTests(unittest.TestCase):
         data = resp.get_json()["data"]
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["id"], 3)
+
+    def test_tool_chains_endpoint_groups_events_by_request_id(self):
+        server._event_log.clear()
+        server._event_seq = 0
+
+        server._log_event(session_id="s1", event_type="request", detail={"request_id": "req_a"})
+        server._log_event(session_id="s1", event_type="tool_call", detail={"request_id": "req_a", "count": 1})
+        server._log_event(session_id="s1", event_type="response", detail={"request_id": "req_a"})
+        server._log_event(session_id="s1", event_type="request", detail={"request_id": "req_b"})
+
+        resp = self.client.get("/v1/tool_chains?session_id=s1")
+        self.assertEqual(resp.status_code, 200)
+
+        chains = resp.get_json()["data"]
+        self.assertEqual(len(chains), 2)
+        self.assertEqual(chains[0]["request_id"], "req_a")
+        self.assertEqual([e["type"] for e in chains[0]["events"]], ["request", "tool_call", "response"])
+        self.assertEqual(chains[1]["request_id"], "req_b")
 
 
 class KeywordAlertsIntegrationRegressionTests(unittest.TestCase):

@@ -59,7 +59,7 @@ Planned:
 Planned:
 
 - [x] realtime agent logging
-- [ ] tool-chain visualization
+- [x] tool-chain visualization
 - [ ] execution traces for tool calls
 
 ---

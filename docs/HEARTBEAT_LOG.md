@@ -192,3 +192,38 @@ Conversation Management → **browser restart after N chats**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 09:21 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Observability → **tool-chain visualization**.
+
+### Planner
+- Confirmed next highest-priority unchecked roadmap item was `tool-chain visualization`.
+- Planned minimal vertical slice:
+  1. Add stable request correlation IDs to event log entries.
+  2. Emit explicit `tool_call` events.
+  3. Expose grouped timeline endpoint for quick tool-chain inspection.
+  4. Add regression coverage.
+  5. Update docs and roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added per-request correlation id (`request_id`) for `/v1/chat/completions` event lifecycle,
+  - added `tool_call` event emission,
+  - added `GET /v1/tool_chains` endpoint to group events by `request_id` with ordered per-chain event lists.
+- Updated docs/status:
+  - `README.md` (documents `/v1/tool_chains` and `tool_call` event type)
+  - `ROADMAP.md` (`tool-chain visualization` checked)
+- Extended regression tests in `tests/test_server_filter_provider_regressions.py`:
+  - request/response events share same `request_id`,
+  - `/v1/tool_chains` groups and orders chains correctly.
+
+### Tester/Evaluator
+- Targeted regression run:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+- Full suite run:
+  - `.venv/bin/python -m pytest -q`
+
+### Outcome
+- Milestone slice implemented; validation results determine commit/push readiness.

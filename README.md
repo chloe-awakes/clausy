@@ -548,5 +548,13 @@ Clausy can expose a lightweight in-memory event feed for observability:
 GET /v1/events?limit=100&since_id=0&session_id=<optional>
 ```
 
-Returns recent `request` / `response` events from a ring buffer.
+Returns recent `request` / `response` / `tool_call` events from a ring buffer.
 Use this for basic local monitoring and troubleshooting.
+
+For grouped tool-chain visualization per completion request:
+
+```bash
+GET /v1/tool_chains?limit=50&since_id=0&session_id=<optional>
+```
+
+Each chain is grouped by `request_id` and includes the ordered event timeline.
