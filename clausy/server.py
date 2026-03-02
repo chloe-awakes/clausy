@@ -82,6 +82,7 @@ TOOL_PASSWORD_MESSAGE = os.environ.get(
 # Conversation reset
 RESET_TURNS = int(os.environ.get("CLAUSY_RESET_TURNS", "20"))
 RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "1500"))
+BROWSER_RESTART_EVERY_RESETS = int(os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_RESETS", "0"))
 
 # Realtime event log (in-memory ring buffer)
 EVENT_LOG_ENABLED = _env_flag(os.environ.get("CLAUSY_EVENT_LOG_ENABLED"), default=True)
@@ -144,7 +145,7 @@ alert_dispatcher = AlertDispatcher(
 _playwright_lock = threading.Lock()
 
 # Session meta: keep it in-process (good enough for local use)
-_session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str}
+_session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str, resets_since_restart:int}
 _event_log = deque(maxlen=max(1, EVENT_LOG_MAX_ITEMS))
 _event_seq = 0
 _event_lock = threading.Lock()
@@ -240,8 +241,10 @@ def trim_request(data: dict, session_summary: str | None) -> dict:
 def _get_meta(session_id: str) -> Dict[str, Any]:
     meta = _session_meta.get(session_id)
     if meta is None:
-        meta = {"turns": 0, "summary": ""}
+        meta = {"turns": 0, "summary": "", "resets_since_restart": 0}
         _session_meta[session_id] = meta
+    else:
+        meta.setdefault("resets_since_restart", 0)
     return meta
 
 
@@ -959,6 +962,12 @@ def _post_turn_housekeeping(session_id: str, provider, meta: Dict[str, Any]) -> 
         browser.reset_page(session_id)
 
     meta["turns"] = 0
+    resets = int(meta.get("resets_since_restart", 0)) + 1
+    meta["resets_since_restart"] = resets
+
+    if BROWSER_RESTART_EVERY_RESETS > 0 and resets >= BROWSER_RESTART_EVERY_RESETS:
+        browser.restart_session(session_id)
+        meta["resets_since_restart"] = 0
 
 def main():
     print("Starting Clausy server...")

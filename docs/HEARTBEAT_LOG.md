@@ -149,3 +149,46 @@ Observability → **realtime agent logging**.
 
 ### Outcome
 - Milestone slice implemented; validation results below determine commit/push readiness.
+
+## 2026-03-02 08:49 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Conversation Management → **browser restart after N chats**.
+
+### Planner
+- Confirmed next highest-priority unchecked roadmap item was `browser restart after N chats`.
+- Planned minimal vertical slice:
+  1. Add configurable restart threshold after conversation resets.
+  2. Track per-session reset count.
+  3. Trigger browser restart when threshold is reached.
+  4. Add regression coverage for threshold and restart behavior.
+  5. Update docs/config and roadmap checkbox.
+
+### Executor
+- Added server config/env support:
+  - `CLAUSY_BROWSER_RESTART_EVERY_RESETS` (default `0`, disabled)
+  - per-session metadata field `resets_since_restart`
+- Extended housekeeping logic in `clausy/server.py`:
+  - increments reset counter after each rotation
+  - restarts browser session when configured threshold is met
+  - resets counter to `0` post-restart
+- Added `BrowserPool.restart_session(session_id)` in `clausy/browser.py` to re-establish browser connection and reopen a clean session tab.
+- Updated docs/config:
+  - `.env.example`
+  - `README.md`
+  - `ROADMAP.md` (`browser restart after N chats` checked)
+- Added/updated tests in `tests/test_server_filter_provider_regressions.py`:
+  - reset counter increments without restart by default
+  - restart triggers exactly at configured threshold
+  - fallback path still resets page and counter updates
+
+### Tester/Evaluator
+- Targeted regression run:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+  - **20 passed**
+- Full suite run:
+  - `.venv/bin/python -m pytest -q`
+  - **89 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

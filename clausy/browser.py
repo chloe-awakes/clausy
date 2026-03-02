@@ -87,6 +87,29 @@ class BrowserPool:
             self._pages[session_id] = page
             return page
 
+    def restart_session(self, session_id: str):
+        """Restart browser connection for stability and reopen this session tab."""
+        if not session_id:
+            session_id = "default"
+        with self._lock:
+            try:
+                if self._browser:
+                    self._browser.close()
+            except Exception:
+                pass
+            try:
+                if self._pw:
+                    self._pw.stop()
+            except Exception:
+                pass
+            self._browser = None
+            self._context = None
+            self._pw = None
+            self._pages = {}
+
+        self.start()
+        return self.get_page(session_id)
+
 
 def new_temp_page(self, url: str):
     """Open a temporary page (tab) for one-off tasks like web search.

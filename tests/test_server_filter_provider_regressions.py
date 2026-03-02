@@ -107,18 +107,21 @@ class ConversationManagementRegressionTests(unittest.TestCase):
 
     @patch("clausy.server._summarize_session")
     @patch("clausy.server.browser.get_page")
-    def test_post_turn_housekeeping_summarizes_rotates_and_resets_counter(self, mock_get_page, mock_summarize):
+    @patch("clausy.server.browser.restart_session")
+    def test_post_turn_housekeeping_summarizes_rotates_and_resets_counter(self, mock_restart, mock_get_page, mock_summarize):
         provider = unittest.mock.Mock()
         page = object()
         mock_get_page.return_value = page
         mock_summarize.return_value = "short summary"
-        meta = {"turns": server.RESET_TURNS, "summary": ""}
+        meta = {"turns": server.RESET_TURNS, "summary": "", "resets_since_restart": 0}
 
         server._post_turn_housekeeping("s1", provider, meta)
 
         self.assertEqual(meta["summary"], "short summary")
         self.assertEqual(meta["turns"], 0)
+        self.assertEqual(meta["resets_since_restart"], 1)
         provider.start_new_chat.assert_called_once_with(page)
+        mock_restart.assert_not_called()
 
     @patch("clausy.server._summarize_session")
     @patch("clausy.server.browser.reset_page")
@@ -134,12 +137,33 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         mock_get_page.return_value = page
         mock_summarize.return_value = "summary"
         provider.start_new_chat.side_effect = RuntimeError("ui changed")
-        meta = {"turns": server.RESET_TURNS, "summary": ""}
+        meta = {"turns": server.RESET_TURNS, "summary": "", "resets_since_restart": 0}
 
         server._post_turn_housekeeping("s1", provider, meta)
 
         mock_reset_page.assert_called_once_with("s1")
         self.assertEqual(meta["turns"], 0)
+        self.assertEqual(meta["resets_since_restart"], 1)
+
+
+    @patch("clausy.server._summarize_session")
+    @patch("clausy.server.browser.get_page")
+    @patch("clausy.server.browser.restart_session")
+    def test_post_turn_housekeeping_restarts_browser_after_configured_resets(self, mock_restart, mock_get_page, mock_summarize):
+        provider = unittest.mock.Mock()
+        mock_get_page.return_value = object()
+        mock_summarize.return_value = "summary"
+        meta = {"turns": server.RESET_TURNS, "summary": "", "resets_since_restart": 1}
+
+        old_threshold = server.BROWSER_RESTART_EVERY_RESETS
+        server.BROWSER_RESTART_EVERY_RESETS = 2
+        try:
+            server._post_turn_housekeeping("s1", provider, meta)
+        finally:
+            server.BROWSER_RESTART_EVERY_RESETS = old_threshold
+
+        mock_restart.assert_called_once_with("s1")
+        self.assertEqual(meta["resets_since_restart"], 0)
 
 
 class EventLogRegressionTests(unittest.TestCase):

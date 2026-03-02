@@ -241,6 +241,7 @@ Environment variables:
 - `CLAUSY_MAX_REPAIRS` (default `2`)
 - `CLAUSY_RESET_TURNS` (default `20`)
 - `CLAUSY_RESET_SUMMARY_MAX_CHARS` (default `1500`)
+- `CLAUSY_BROWSER_RESTART_EVERY_RESETS` (default `0`) restarts the browser connection after N conversation resets (`0` disables)
 - `CLAUSY_EVENT_LOG_ENABLED` (`0|1`, default `1`) enables in-memory request/response event logging
 - `CLAUSY_EVENT_LOG_MAX_ITEMS` (default `500`) ring-buffer size for `/v1/events`
 - `CLAUSY_TOOL_PASSWORD` (optional; when set, tool calls are only returned if password header matches)

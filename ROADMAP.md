@@ -50,7 +50,7 @@ Planned:
 
 - [x] automatic chat rotation
 - [x] conversation summarization
-- [ ] browser restart after N chats
+- [x] browser restart after N chats
 
 ---
 
