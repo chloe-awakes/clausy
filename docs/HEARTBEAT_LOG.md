@@ -319,3 +319,40 @@ Model Control → **automatic model switching**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 10:37 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Model Control → **fallback chains (local → cloud → backup)**.
+
+### Planner
+- Confirmed next unchecked high-priority roadmap item was `fallback chains (local → cloud → backup)`.
+- Planned minimal vertical slice:
+  1. Add provider candidate resolution (`primary + configured fallbacks`).
+  2. Add runtime retries for chat completions when provider init/execution fails.
+  3. Add regression coverage for candidate ordering and fallback behavior.
+  4. Update docs/config + roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_FALLBACK_CHAIN` env support,
+  - added `_parse_fallback_chain(...)` and `_provider_candidates(...)`,
+  - integrated retry flow for API providers and web providers (stream preflight + non-stream execution).
+- Added regression tests in `tests/test_server_filter_provider_regressions.py`:
+  - provider-candidate ordering/dedupe,
+  - non-stream fallback to secondary web provider when primary fails.
+- Updated docs/config/status:
+  - `.env.example` documents `CLAUSY_FALLBACK_CHAIN`,
+  - `README.md` documents fallback chain behavior,
+  - `ROADMAP.md` marks `fallback chains` complete.
+
+### Tester/Evaluator
+- Regression gate:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py tests/test_models_endpoint.py`
+  - **28 passed**
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **102 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

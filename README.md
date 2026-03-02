@@ -250,6 +250,7 @@ Environment variables:
 - `CLAUSY_BIND` (default `0.0.0.0`)
 - `CLAUSY_PROVIDER` (default `chatgpt`)
 - `CLAUSY_AUTO_MODEL_SWITCH` (`0|1`, default `1`): auto-route each request by incoming model id (for example `claude-web` → Claude provider, `openai-api` → OpenAI API provider)
+- `CLAUSY_FALLBACK_CHAIN` (optional comma-separated provider names): ordered fallback providers to try when the selected provider fails (example: `ollama,openai,openrouter`)
 - `CLAUSY_CHATGPT_URL` (default `https://chatgpt.com`)
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
@@ -414,6 +415,7 @@ Notes:
 - Ollama mode targets native Ollama `/api/chat` and normalizes to OpenAI-compatible responses.
 - Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`, `poe`, `deepseek`) are unchanged.
 - With `CLAUSY_AUTO_MODEL_SWITCH=1`, Clausy can keep one default provider while automatically routing requests by `model` (`chatgpt-web`, `claude-web`, `openai-api`, etc.).
+- If `CLAUSY_FALLBACK_CHAIN` is set, Clausy retries providers in that order when the primary provider errors (first successful provider wins).
 
 Optional URLs:
 

@@ -170,6 +170,20 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
+    def test_provider_candidates_include_primary_then_configured_fallbacks(self):
+        old_auto = server.AUTO_MODEL_SWITCH
+        old_provider = server.PROVIDER_NAME
+        old_chain = server.FALLBACK_CHAIN_RAW
+        try:
+            server.AUTO_MODEL_SWITCH = True
+            server.PROVIDER_NAME = "chatgpt"
+            server.FALLBACK_CHAIN_RAW = "grok,claude,chatgpt"
+            self.assertEqual(server._provider_candidates("claude-web"), ["claude", "grok", "chatgpt"])
+        finally:
+            server.AUTO_MODEL_SWITCH = old_auto
+            server.PROVIDER_NAME = old_provider
+            server.FALLBACK_CHAIN_RAW = old_chain
+
     def test_resolve_provider_name_uses_model_mapping_when_enabled(self):
         old_auto = server.AUTO_MODEL_SWITCH
         old_provider = server.PROVIDER_NAME
@@ -209,7 +223,45 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
                 server.PROVIDER_NAME = old_provider
 
         self.assertEqual(resp.status_code, 200)
-        mock_registry_get.assert_called_once_with("claude")
+        mock_registry_get.assert_called_with("claude")
+
+    def test_non_stream_falls_back_to_secondary_web_provider_on_primary_failure(self):
+        broken = unittest.mock.Mock()
+        broken.ensure_ready.side_effect = RuntimeError("primary down")
+        fallback = unittest.mock.Mock()
+        fallback.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+
+        def _get_provider(name):
+            return {"chatgpt": broken, "claude": fallback}[name]
+
+        with patch("clausy.server.registry.get", side_effect=_get_provider), \
+            patch("clausy.server.browser.get_page", return_value=object()), \
+            patch("clausy.server.parse_or_repair_output", return_value={
+                "choices": [{"message": {"content": "ok", "tool_calls": []}, "finish_reason": "stop"}]
+            }), \
+            patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), \
+            patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), \
+            patch("clausy.server._post_turn_housekeeping"):
+            old_auto = server.AUTO_MODEL_SWITCH
+            old_provider = server.PROVIDER_NAME
+            old_chain = server.FALLBACK_CHAIN_RAW
+            try:
+                server.AUTO_MODEL_SWITCH = False
+                server.PROVIDER_NAME = "chatgpt"
+                server.FALLBACK_CHAIN_RAW = "claude"
+                resp = self.client.post(
+                    "/v1/chat/completions",
+                    json={"model": "chatgpt-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"X-Clausy-Session": "switch2"},
+                )
+            finally:
+                server.AUTO_MODEL_SWITCH = old_auto
+                server.PROVIDER_NAME = old_provider
+                server.FALLBACK_CHAIN_RAW = old_chain
+
+        self.assertEqual(resp.status_code, 200)
+        broken.ensure_ready.assert_called()
+        fallback.ensure_ready.assert_called()
 
 
 class EventLogRegressionTests(unittest.TestCase):

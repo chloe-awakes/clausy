@@ -56,6 +56,7 @@ def _env_flag(raw: str | None, *, default: bool = False) -> bool:
 
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 AUTO_MODEL_SWITCH = _env_flag(os.environ.get("CLAUSY_AUTO_MODEL_SWITCH"), default=True)
+FALLBACK_CHAIN_RAW = os.environ.get("CLAUSY_FALLBACK_CHAIN", "").strip()
 
 WEB_PROVIDER_MODELS = {
     "chatgpt": "chatgpt-web",
@@ -193,6 +194,30 @@ def _resolve_provider_name(model: str | None) -> str:
     if not AUTO_MODEL_SWITCH:
         return PROVIDER_NAME
     return _provider_for_model(model) or PROVIDER_NAME
+
+
+def _parse_fallback_chain(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    out: list[str] = []
+    for item in raw.split(","):
+        name = (item or "").strip().lower()
+        if not name:
+            continue
+        out.append(name)
+    return out
+
+
+def _provider_candidates(model: str | None) -> list[str]:
+    primary = _resolve_provider_name(model).strip().lower()
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name in [primary, *_parse_fallback_chain(FALLBACK_CHAIN_RAW)]:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        ordered.append(name)
+    return ordered or [primary]
 
 
 def _tool_password_required() -> bool:
@@ -589,56 +614,75 @@ def chat_completions():
     data = request.get_json(force=True)
     stream = bool(data.get("stream", False))
     model = data.get("model", "chatgpt-web")
-    active_provider = _resolve_provider_name(model)
+    provider_candidates = _provider_candidates(model)
+    active_provider = provider_candidates[0]
     session_id = get_session_id()
     request_id = _new_request_id()
 
     _log_event(
         session_id=session_id,
         event_type="request",
-        detail={"provider": active_provider, "stream": stream, "model": model, "request_id": request_id},
+        detail={"provider": active_provider, "fallback_chain": provider_candidates[1:], "stream": stream, "model": model, "request_id": request_id},
     )
 
     if is_api_provider(active_provider):
-        try:
-            api_provider = api_router.get(active_provider)
-            if stream:
-                lines = api_provider.chat_completion(data, stream=True)
+        last_error: Exception | None = None
+        for candidate in provider_candidates:
+            if not is_api_provider(candidate):
+                continue
+            try:
+                api_provider = api_router.get(candidate)
+                if stream:
+                    lines = api_provider.chat_completion(data, stream=True)
 
-                def _gen():
-                    for line in lines:
-                        if line:
-                            yield f"{line}\n"
+                    def _gen():
+                        for line in lines:
+                            if line:
+                                yield f"{line}\n"
 
-                return Response(stream_with_context(_gen()), mimetype="text/event-stream")
+                    return Response(stream_with_context(_gen()), mimetype="text/event-stream")
 
-            raw = api_provider.chat_completion(data, stream=False)
-            normalized = _normalize_openai_response(raw, model=model)
-            normalized = _sanitize_parsed_response(normalized)
-            normalized = _enforce_tool_password(normalized)
-            msg = normalized.get("choices", [{}])[0].get("message", {}) if isinstance(normalized, dict) else {}
-            _log_event(
-                session_id=session_id,
-                event_type="response",
-                detail={
-                    "finish_reason": (normalized.get("choices", [{}])[0].get("finish_reason") if isinstance(normalized, dict) else None),
-                    "has_tool_calls": isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0,
-                    "stream": False,
-                    "request_id": request_id,
-                },
-            )
-            return jsonify(normalized)
-        except APIProviderError as e:
-            return _provider_error_response(e)
-        except Exception as e:
-            return _provider_error_response(e)
+                raw = api_provider.chat_completion(data, stream=False)
+                normalized = _normalize_openai_response(raw, model=model)
+                normalized = _sanitize_parsed_response(normalized)
+                normalized = _enforce_tool_password(normalized)
+                msg = normalized.get("choices", [{}])[0].get("message", {}) if isinstance(normalized, dict) else {}
+                _log_event(
+                    session_id=session_id,
+                    event_type="response",
+                    detail={
+                        "finish_reason": (normalized.get("choices", [{}])[0].get("finish_reason") if isinstance(normalized, dict) else None),
+                        "has_tool_calls": isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0,
+                        "stream": False,
+                        "request_id": request_id,
+                        "provider": candidate,
+                    },
+                )
+                return jsonify(normalized)
+            except (APIProviderError, Exception) as e:
+                last_error = e
+                continue
+        return _provider_error_response(last_error or RuntimeError("No available API fallback provider"))
 
     meta = _get_meta(session_id)
-    try:
-        provider = registry.get(active_provider)
-        page = browser.get_page(session_id)
-    except Exception as e:
-        return _provider_error_response(e)
+    provider = None
+    page = None
+    selected_provider_name = None
+    last_error: Exception | None = None
+    for candidate in provider_candidates:
+        if is_api_provider(candidate):
+            continue
+        try:
+            provider = registry.get(candidate)
+            page = browser.get_page(session_id)
+            selected_provider_name = candidate
+            break
+        except Exception as e:
+            last_error = e
+            continue
+    if provider is None or page is None:
+        return _provider_error_response(last_error or RuntimeError("No available web fallback provider"))
+    active_provider = selected_provider_name or active_provider
 
     trimmed = trim_request(data, meta.get("summary") or "")
     prompt = build_backend_prompt(trimmed)
@@ -654,12 +698,28 @@ def chat_completions():
         )
 
     if stream:
-        with _playwright_lock:
+        stream_error: Exception | None = None
+        started = False
+        for candidate in provider_candidates:
+            if is_api_provider(candidate):
+                continue
             try:
-                provider.ensure_ready(page)
-                provider.send_prompt(page, prompt)
+                cand_provider = registry.get(candidate)
+                cand_page = browser.get_page(session_id)
+                with _playwright_lock:
+                    cand_provider.ensure_ready(cand_page)
+                    cand_provider.send_prompt(cand_page, prompt)
+                provider = cand_provider
+                page = cand_page
+                active_provider = candidate
+                started = True
+                stream_error = None
+                break
             except Exception as e:
-                return _provider_error_response(e)
+                stream_error = e
+                continue
+        if not started:
+            return _provider_error_response(stream_error or RuntimeError("No available web fallback provider"))
 
         def generate():
             completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
@@ -908,14 +968,29 @@ def chat_completions():
         )
 
     # Non-stream path
-    with _playwright_lock:
+    raw_reply = None
+    non_stream_error: Exception | None = None
+    for candidate in provider_candidates:
+        if is_api_provider(candidate):
+            continue
         try:
-            provider.ensure_ready(page)
-            provider.send_prompt(page, prompt)
-            provider.wait_done(page)
-            raw_reply = provider.get_last_assistant_text(page)
+            cand_provider = registry.get(candidate)
+            cand_page = browser.get_page(session_id)
+            with _playwright_lock:
+                cand_provider.ensure_ready(cand_page)
+                cand_provider.send_prompt(cand_page, prompt)
+                cand_provider.wait_done(cand_page)
+                raw_reply = cand_provider.get_last_assistant_text(cand_page)
+            provider = cand_provider
+            page = cand_page
+            active_provider = candidate
+            non_stream_error = None
+            break
         except Exception as e:
-            return _provider_error_response(e)
+            non_stream_error = e
+            continue
+    if raw_reply is None:
+        return _provider_error_response(non_stream_error or RuntimeError("No available web fallback provider"))
 
     try:
         parsed = parse_or_repair_output(
