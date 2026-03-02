@@ -60,6 +60,7 @@ GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
 GEMINI_WEB_URL = os.environ.get("CLAUSY_GEMINI_WEB_URL", "https://gemini.google.com").strip()
 PERPLEXITY_URL = os.environ.get("CLAUSY_PERPLEXITY_URL", "https://www.perplexity.ai").strip()
 POE_URL = os.environ.get("CLAUSY_POE_URL", "https://poe.com").strip()
+DEEPSEEK_URL = os.environ.get("CLAUSY_DEEPSEEK_URL", "https://chat.deepseek.com").strip()
 ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=False)
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
@@ -90,6 +91,7 @@ registry = ProviderRegistry.default(
     gemini_web_url=GEMINI_WEB_URL,
     perplexity_url=PERPLEXITY_URL,
     poe_url=POE_URL,
+    deepseek_url=DEEPSEEK_URL,
     allow_anonymous_browser=ALLOW_ANON_BROWSER,
 )
 api_router = APIProviderRouter()
@@ -335,6 +337,7 @@ def list_models():
         "gemini_web": "gemini-web",
         "perplexity": "perplexity-web",
         "poe": "poe-web",
+        "deepseek": "deepseek-web",
     }
     if is_api_provider(PROVIDER_NAME):
         model_id = f"{PROVIDER_NAME}-api"

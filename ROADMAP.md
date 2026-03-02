@@ -40,7 +40,7 @@ Planned:
 
 - [x] Perplexity
 - [x] Poe
-- [ ] DeepSeek Web
+- [x] DeepSeek Web
 
 ---
 

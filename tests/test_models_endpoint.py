@@ -13,6 +13,7 @@ import pytest
         ("gemini_web", "gemini-web"),
         ("perplexity", "perplexity-web"),
         ("poe", "poe-web"),
+        ("deepseek", "deepseek-web"),
     ],
 )
 def test_models_endpoint_exposes_web_provider_model(monkeypatch, provider_name, expected_model_id):

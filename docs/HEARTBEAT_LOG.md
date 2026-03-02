@@ -38,3 +38,46 @@ Browser LLM Providers → **Poe** integration.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 07:19 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Browser LLM Providers → **DeepSeek Web** integration.
+
+### Planner
+- Confirmed next unfinished highest-priority roadmap item was `DeepSeek Web`.
+- Planned vertical slice:
+  1. Add `DeepSeekWebProvider` adapter.
+  2. Wire provider into default registry and exports.
+  3. Add env URL and model mapping in `/v1/models`.
+  4. Extend regression tests.
+  5. Update docs and roadmap status.
+
+### Executor
+- Added `clausy/providers/deepseek.py` (ChatGPT-style adapter with DeepSeek-focused selectors).
+- Wired DeepSeek through:
+  - `clausy/providers/registry.py` (`deepseek_url`, provider registration)
+  - `clausy/providers/__init__.py`
+  - `clausy/server.py` (`CLAUSY_DEEPSEEK_URL`, registry wiring, `/v1/models` mapping to `deepseek-web`)
+- Updated docs/config:
+  - `.env.example`
+  - `README.md` (supported providers + env vars)
+  - `ROADMAP.md` (`DeepSeek Web` now checked)
+- Extended regression coverage:
+  - `tests/test_models_endpoint.py` checks `deepseek -> deepseek-web`
+  - `tests/test_server_filter_provider_regressions.py` asserts default registry includes `deepseek`
+
+### Tester/Evaluator
+- First targeted run (after adding tests before implementation):
+  - `.venv/bin/python -m pytest -q tests/test_models_endpoint.py tests/test_server_filter_provider_regressions.py`
+  - **1 failed, 13 passed** (`deepseek` missing in default registry)
+- Follow-up fix applied immediately: registry wiring + server model/env updates + provider class.
+- Re-run targeted regression:
+  - `.venv/bin/python -m pytest -q tests/test_models_endpoint.py tests/test_server_filter_provider_regressions.py`
+  - **14 passed**
+- Full suite run:
+  - `.venv/bin/python -m pytest -q`
+  - **83 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

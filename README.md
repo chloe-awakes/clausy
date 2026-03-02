@@ -80,7 +80,7 @@ Implemented:
 - Grok Web
 - Gemini Web
 
-Planned:
+Implemented:
 
 - Perplexity
 - Poe
@@ -232,6 +232,7 @@ Environment variables:
 - `CLAUSY_GEMINI_WEB_URL` (default `https://gemini.google.com`)
 - `CLAUSY_PERPLEXITY_URL` (default `https://www.perplexity.ai`)
 - `CLAUSY_POE_URL` (default `https://poe.com`)
+- `CLAUSY_DEEPSEEK_URL` (default `https://chat.deepseek.com`)
 - `ALLOW_ANON_BROWSER` (`0|1`, default `0`): when `1`, ChatGPT/Claude/Grok web providers attempt guest/unauth flow first and only return auth error when the page is actually login-blocked.
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
@@ -349,6 +350,7 @@ CLAUSY_PROVIDER=grok
 CLAUSY_PROVIDER=gemini_web
 CLAUSY_PROVIDER=perplexity
 CLAUSY_PROVIDER=poe
+CLAUSY_PROVIDER=deepseek
 ```
 
 ## Providers (API mode)
@@ -377,7 +379,7 @@ Notes:
 - Non-stream responses are normalized into OpenAI Chat Completions JSON shape.
 - Streaming responses are emitted as OpenAI-compatible SSE chunks (`data: ...`, `data: [DONE]`).
 - Ollama mode targets native Ollama `/api/chat` and normalizes to OpenAI-compatible responses.
-- Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`, `poe`) are unchanged.
+- Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`, `poe`, `deepseek`) are unchanged.
 
 Optional URLs:
 
@@ -387,6 +389,7 @@ Optional URLs:
 - `CLAUSY_GEMINI_WEB_URL=https://gemini.google.com`
 - `CLAUSY_PERPLEXITY_URL=https://www.perplexity.ai`
 - `CLAUSY_POE_URL=https://poe.com`
+- `CLAUSY_DEEPSEEK_URL=https://chat.deepseek.com`
 
 To inspect selectors:
 
