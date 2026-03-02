@@ -556,3 +556,45 @@ Browser Automation → **anti-detection profile rotation**.
 
 ### Outcome
 - Milestone slice implemented; validation below determines commit/push readiness.
+
+## 2026-03-02 14:05 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Developer Experience → **pip package**.
+
+### Planner
+- Confirmed only remaining unchecked roadmap milestone was `pip package`.
+- Planned minimal completion slice:
+  1. Ensure package metadata is PyPI-friendly.
+  2. Build sdist/wheel and run package validation.
+  3. Run installer-related regression tests.
+  4. Update roadmap + heartbeat evidence.
+
+### Executor
+- Updated `pyproject.toml` with `readme = "README.md"` to provide package long description metadata.
+- Updated `ROADMAP.md` to mark `pip package` complete.
+
+### Tester/Evaluator
+- Build + artifact generation:
+  - `.venv/bin/python -m build`
+  - **produced** `dist/clausy-0.1.0.tar.gz` and `dist/clausy-0.1.0-py3-none-any.whl`
+- Artifact checks:
+  - `.venv/bin/python -m twine check dist/*`
+  - **passed** for wheel + sdist
+- Packaging install smoke:
+  - `.venv/bin/python -m pip install --force-reinstall dist/clausy-0.1.0-py3-none-any.whl`
+  - **passed**
+- First regression test run:
+  - `.venv/bin/python -m pytest -q tests/test_install_cli.py`
+  - **1 failed, 1 passed** (`python3.14` executable suffix vs strict `python` assertion)
+- Immediate follow-up fix:
+  - relaxed executable assertion in `tests/test_install_cli.py` to accept versioned Python names (`python*`).
+- Re-run regression test:
+  - `.venv/bin/python -m pytest -q tests/test_install_cli.py`
+  - **2 passed**
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **113 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

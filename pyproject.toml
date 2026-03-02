@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "clausy"
 version = "0.1.0"
 description = "OpenAI-compatible gateway to web-based LLM UIs via Playwright"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "flask>=3.0.0",

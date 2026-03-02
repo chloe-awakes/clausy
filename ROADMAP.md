@@ -126,4 +126,4 @@ Planned:
 
 - [x] Docker image
 - [x] one-command install
-- [ ] pip package
+- [x] pip package
