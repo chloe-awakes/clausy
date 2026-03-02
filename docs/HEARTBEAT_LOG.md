@@ -395,3 +395,49 @@ Model Control → **cost-aware routing**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 11:36 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Browser Automation → **automatic browser profile switching**.
+
+### Planner
+- Confirmed next unchecked high-priority roadmap item was `automatic browser profile switching`.
+- Planned minimal vertical slice:
+  1. Add provider→profile mapping config.
+  2. Switch browser profile automatically when provider routing changes.
+  3. Keep backward compatibility when browser test doubles/mocks do not implement profile switching.
+  4. Add regression coverage + runtime tests.
+  5. Update docs/config + roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_PROFILE_BY_PROVIDER` config,
+  - added `_parse_provider_profile_map`, `_profile_dir_for_provider`, `_ensure_browser_profile`,
+  - profile switch hook now runs before provider page acquisition in stream + non-stream fallback loops,
+  - emits `browser_profile_switch` event when profile changes.
+- Updated `clausy/browser.py`:
+  - added `BrowserPool.switch_profile(profile_dir)` to restart browser context on profile change.
+- Added tests:
+  - `tests/test_server_filter_provider_regressions.py` for mapping/default behavior and profile-switch invocation in request path.
+  - `tests/test_browser_runtime.py` for `switch_profile` restart/no-op behavior.
+- Updated docs/config/status:
+  - `.env.example` documents `CLAUSY_PROFILE_BY_PROVIDER`,
+  - `README.md` documents automatic per-provider profile switching,
+  - `ROADMAP.md` marks `automatic browser profile switching` complete.
+
+### Tester/Evaluator
+- Targeted run:
+  - `.venv/bin/python -m pytest -q tests/test_browser_runtime.py tests/test_server_filter_provider_regressions.py -k "profile or switch_profile"`
+  - **5 passed**
+- Full suite run (first pass):
+  - `.venv/bin/python -m pytest -q`
+  - **13 failed, 94 passed** (`FakeBrowser` in contract tests lacked `switch_profile`)
+- Immediate follow-up fix in same cycle:
+  - hardened `_ensure_browser_profile` to no-op if `browser.switch_profile` is absent.
+- Full suite re-run:
+  - `.venv/bin/python -m pytest -q`
+  - **107 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

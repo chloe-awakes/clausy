@@ -90,6 +90,7 @@ ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=Fal
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
 PROFILE_DIR = os.environ.get("CLAUSY_PROFILE_DIR", "./profile").strip()
+PROFILE_BY_PROVIDER_RAW = os.environ.get("CLAUSY_PROFILE_BY_PROVIDER", "").strip()
 
 BIND = os.environ.get("CLAUSY_BIND", "0.0.0.0")
 PORT = int(os.environ.get("CLAUSY_PORT", "3108"))
@@ -218,16 +219,54 @@ def _parse_provider_costs(raw: str | None) -> dict[str, float]:
         token = (item or "").strip()
         if not token or ":" not in token:
             continue
-        name, value = token.split(":", 1)
-        provider = name.strip().lower()
-        if not provider:
+        name, val = token.split(":", 1)
+        name = name.strip().lower()
+        if not name:
             continue
         try:
-            costs[provider] = float(value.strip())
-        except ValueError:
+            costs[name] = float(val.strip())
+        except Exception:
             continue
     return costs
 
+
+def _parse_provider_profile_map(raw: str | None) -> dict[str, str]:
+    if not raw:
+        return {}
+    profiles: dict[str, str] = {}
+    for item in raw.split(","):
+        token = (item or "").strip()
+        if not token or ":" not in token:
+            continue
+        name, profile = token.split(":", 1)
+        name = name.strip().lower()
+        profile = profile.strip()
+        if not name or not profile:
+            continue
+        profiles[name] = profile
+    return profiles
+
+
+def _profile_dir_for_provider(provider_name: str | None) -> str:
+    name = (provider_name or "").strip().lower()
+    profile_map = _parse_provider_profile_map(PROFILE_BY_PROVIDER_RAW)
+    return profile_map.get(name, PROFILE_DIR)
+
+
+def _ensure_browser_profile(provider_name: str | None, session_id: str) -> None:
+    if is_api_provider(provider_name or ""):
+        return
+    switch_fn = getattr(browser, "switch_profile", None)
+    if not callable(switch_fn):
+        return
+    target_profile = _profile_dir_for_provider(provider_name)
+    switched = switch_fn(target_profile)
+    if switched:
+        _log_event(
+            session_id=session_id,
+            event_type="browser_profile_switch",
+            detail={"provider": provider_name, "profile_dir": os.path.abspath(target_profile)},
+        )
 
 def _provider_candidates(model: str | None) -> list[str]:
     primary = _resolve_provider_name(model).strip().lower()
@@ -704,6 +743,7 @@ def chat_completions():
             continue
         try:
             provider = registry.get(candidate)
+            _ensure_browser_profile(candidate, session_id)
             page = browser.get_page(session_id)
             selected_provider_name = candidate
             break
@@ -735,6 +775,7 @@ def chat_completions():
                 continue
             try:
                 cand_provider = registry.get(candidate)
+                _ensure_browser_profile(candidate, session_id)
                 cand_page = browser.get_page(session_id)
                 with _playwright_lock:
                     cand_provider.ensure_ready(cand_page)

@@ -104,6 +104,37 @@ class BrowserPool:
 
             self._context = self._browser.contexts[0] if self._browser.contexts else self._browser.new_context()
 
+    def switch_profile(self, profile_dir: str | None) -> bool:
+        """Switch active browser profile directory; restart browser if changed.
+
+        Returns True when a profile change/restart happened.
+        """
+        if not profile_dir:
+            return False
+        normalized = os.path.abspath(profile_dir)
+        if normalized == self.profile_dir:
+            return False
+
+        with self._lock:
+            self.profile_dir = normalized
+            try:
+                if self._browser:
+                    self._browser.close()
+            except Exception:
+                pass
+            try:
+                if self._pw:
+                    self._pw.stop()
+            except Exception:
+                pass
+            self._browser = None
+            self._context = None
+            self._pw = None
+            self._pages = {}
+
+        self.start()
+        return True
+
     def get_page(self, session_id: str):
         if not session_id:
             session_id = "default"

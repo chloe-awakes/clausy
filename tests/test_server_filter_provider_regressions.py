@@ -204,6 +204,41 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server.COST_AWARE_ROUTING = old_cost_aware
             server.PROVIDER_COSTS_RAW = old_costs_raw
 
+
+    def test_profile_dir_for_provider_uses_mapping_and_default(self):
+        old_default = server.PROFILE_DIR
+        old_raw = server.PROFILE_BY_PROVIDER_RAW
+        try:
+            server.PROFILE_DIR = "./profile-default"
+            server.PROFILE_BY_PROVIDER_RAW = "claude:./profile-claude,chatgpt:./profile-chatgpt"
+            self.assertEqual(server._profile_dir_for_provider("claude"), "./profile-claude")
+            self.assertEqual(server._profile_dir_for_provider("grok"), "./profile-default")
+        finally:
+            server.PROFILE_DIR = old_default
+            server.PROFILE_BY_PROVIDER_RAW = old_raw
+
+    @patch("clausy.server.browser.switch_profile")
+    @patch("clausy.server.registry.get")
+    @patch("clausy.server.browser.get_page")
+    def test_non_stream_switches_browser_profile_for_selected_provider(self, mock_get_page, mock_registry_get, mock_switch_profile):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+        mock_registry_get.return_value = provider
+        mock_get_page.return_value = object()
+        mock_switch_profile.return_value = True
+
+        with patch("clausy.server.parse_or_repair_output", return_value={
+            "choices": [{"message": {"content": "ok", "tool_calls": []}, "finish_reason": "stop"}]
+        }),             patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed),             patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}),             patch("clausy.server._post_turn_housekeeping"),             patch("clausy.server._profile_dir_for_provider", return_value="./profile-claude"):
+            resp = self.client.post(
+                "/v1/chat/completions",
+                json={"model": "claude-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                headers={"X-Clausy-Session": "switch-profile"},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        mock_switch_profile.assert_called()
+
     def test_resolve_provider_name_uses_model_mapping_when_enabled(self):
         old_auto = server.AUTO_MODEL_SWITCH
         old_provider = server.PROVIDER_NAME

@@ -264,6 +264,7 @@ Environment variables:
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
+- `CLAUSY_PROFILE_BY_PROVIDER` (optional comma-separated `provider:path` map): switch browser user-data profile automatically by selected web provider (example: `chatgpt:./profile-chatgpt,claude:./profile-claude`)
 - `CLAUSY_BROWSER_BOOTSTRAP` (`auto|always|never`, default `auto`)
 - `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
@@ -419,6 +420,7 @@ Notes:
 - With `CLAUSY_AUTO_MODEL_SWITCH=1`, Clausy can keep one default provider while automatically routing requests by `model` (`chatgpt-web`, `claude-web`, `openai-api`, etc.).
 - If `CLAUSY_FALLBACK_CHAIN` is set, Clausy retries providers in that order when the primary provider errors (first successful provider wins).
 - If `CLAUSY_COST_AWARE_ROUTING=1`, Clausy reorders the candidate list (`primary + fallback chain`) by `CLAUSY_PROVIDER_COSTS` so cheaper providers are attempted first.
+- If `CLAUSY_PROFILE_BY_PROVIDER` is configured, Clausy automatically switches browser profile directories when provider routing changes (for isolated sessions/cookies per provider).
 
 Optional URLs:
 

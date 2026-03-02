@@ -87,5 +87,24 @@ class BrowserPoolBootstrapTests(unittest.TestCase):
         self.assertEqual(mock_connect.call_count, 2)
 
 
+class BrowserPoolProfileSwitchTests(unittest.TestCase):
+    @patch("clausy.browser.BrowserPool.start")
+    def test_switch_profile_restarts_when_profile_changes(self, mock_start):
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="./profile-a", home_url="https://chatgpt.com")
+        pool._browser = Mock()
+        pool._pw = Mock()
+        changed = pool.switch_profile("./profile-b")
+        self.assertTrue(changed)
+        self.assertTrue(pool.profile_dir.endswith("profile-b"))
+        mock_start.assert_called_once()
+
+    @patch("clausy.browser.BrowserPool.start")
+    def test_switch_profile_noop_when_same_profile(self, mock_start):
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="./profile-a", home_url="https://chatgpt.com")
+        changed = pool.switch_profile("./profile-a")
+        self.assertFalse(changed)
+        mock_start.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
