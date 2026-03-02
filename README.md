@@ -265,6 +265,8 @@ Environment variables:
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
 - `CLAUSY_PROFILE_BY_PROVIDER` (optional comma-separated `provider:path` map): switch browser user-data profile automatically by selected web provider (example: `chatgpt:./profile-chatgpt,claude:./profile-claude`)
+- `CLAUSY_PROFILE_ROTATION_ENABLED` (`0|1`, default `0`) enables anti-detection profile rotation for browser providers
+- `CLAUSY_PROFILE_ROTATION_COUNT` (default `0`) number of rotating profile suffixes (`<profile>-rot1..rotN`); values `0`/`1` disable effective rotation
 - `CLAUSY_BROWSER_BOOTSTRAP` (`auto|always|never`, default `auto`)
 - `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
@@ -422,6 +424,7 @@ Notes:
 - If `CLAUSY_FALLBACK_CHAIN` is set, Clausy retries providers in that order when the primary provider errors (first successful provider wins).
 - If `CLAUSY_COST_AWARE_ROUTING=1`, Clausy reorders the candidate list (`primary + fallback chain`) by `CLAUSY_PROVIDER_COSTS` so cheaper providers are attempted first.
 - If `CLAUSY_PROFILE_BY_PROVIDER` is configured, Clausy automatically switches browser profile directories when provider routing changes (for isolated sessions/cookies per provider).
+- If `CLAUSY_PROFILE_ROTATION_ENABLED=1` and `CLAUSY_PROFILE_ROTATION_COUNT>1`, Clausy round-robins profile directories per provider (`<base>-rot1..rotN`) to reduce repeated fingerprint/session reuse.
 - If `CLAUSY_BROWSER_RESTART_EVERY_REQUESTS` is set to `N>0`, Clausy restarts the browser connection automatically after every N completed requests per session (in addition to `CLAUSY_BROWSER_RESTART_EVERY_RESETS`).
 
 Optional URLs:

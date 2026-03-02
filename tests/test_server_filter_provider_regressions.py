@@ -230,14 +230,43 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR
         old_raw = server.PROFILE_BY_PROVIDER_RAW
+        old_rotate_enabled = server.PROFILE_ROTATION_ENABLED
+        old_rotate_count = server.PROFILE_ROTATION_COUNT
         try:
             server.PROFILE_DIR = "./profile-default"
             server.PROFILE_BY_PROVIDER_RAW = "claude:./profile-claude,chatgpt:./profile-chatgpt"
+            server.PROFILE_ROTATION_ENABLED = False
+            server.PROFILE_ROTATION_COUNT = 0
             self.assertEqual(server._profile_dir_for_provider("claude"), "./profile-claude")
             self.assertEqual(server._profile_dir_for_provider("grok"), "./profile-default")
         finally:
             server.PROFILE_DIR = old_default
             server.PROFILE_BY_PROVIDER_RAW = old_raw
+            server.PROFILE_ROTATION_ENABLED = old_rotate_enabled
+            server.PROFILE_ROTATION_COUNT = old_rotate_count
+
+    def test_profile_dir_for_provider_rotates_when_enabled(self):
+        old_default = server.PROFILE_DIR
+        old_raw = server.PROFILE_BY_PROVIDER_RAW
+        old_rotate_enabled = server.PROFILE_ROTATION_ENABLED
+        old_rotate_count = server.PROFILE_ROTATION_COUNT
+        old_counter = dict(server._profile_rotation_counter)
+        try:
+            server.PROFILE_DIR = "./profile-default"
+            server.PROFILE_BY_PROVIDER_RAW = "claude:./profile-claude"
+            server.PROFILE_ROTATION_ENABLED = True
+            server.PROFILE_ROTATION_COUNT = 2
+            server._profile_rotation_counter.clear()
+            self.assertEqual(server._profile_dir_for_provider("claude"), "./profile-claude-rot1")
+            self.assertEqual(server._profile_dir_for_provider("claude"), "./profile-claude-rot2")
+            self.assertEqual(server._profile_dir_for_provider("claude"), "./profile-claude-rot1")
+        finally:
+            server.PROFILE_DIR = old_default
+            server.PROFILE_BY_PROVIDER_RAW = old_raw
+            server.PROFILE_ROTATION_ENABLED = old_rotate_enabled
+            server.PROFILE_ROTATION_COUNT = old_rotate_count
+            server._profile_rotation_counter.clear()
+            server._profile_rotation_counter.update(old_counter)
 
     @patch("clausy.server.browser.switch_profile")
     @patch("clausy.server.registry.get")

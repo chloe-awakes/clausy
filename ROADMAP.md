@@ -80,7 +80,7 @@ Planned:
 
 - [x] automatic browser profile switching
 - [x] automatic browser restart
-- [ ] anti-detection profile rotation
+- [x] anti-detection profile rotation
 
 ---
 

@@ -480,3 +480,38 @@ Browser Automation → **automatic browser restart**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 12:45 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Browser Automation → **anti-detection profile rotation**.
+
+### Planner
+- Confirmed next highest-priority unchecked roadmap item was `anti-detection profile rotation`.
+- Planned minimal vertical slice:
+  1. Add explicit rotation config flags.
+  2. Extend profile resolution to rotate deterministic profile suffixes per provider.
+  3. Add regression coverage for default + round-robin behavior.
+  4. Update docs/config/status and heartbeat evidence.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_PROFILE_ROTATION_ENABLED`, `CLAUSY_PROFILE_ROTATION_COUNT` config,
+  - added in-memory per-provider rotation counter,
+  - extended `_profile_dir_for_provider(...)` to round-robin `-rotN` suffixes when enabled.
+- Updated tests in `tests/test_server_filter_provider_regressions.py`:
+  - hardened base mapping/default test to explicitly disable rotation,
+  - added new regression `test_profile_dir_for_provider_rotates_when_enabled` (2-slot round-robin).
+- Updated docs/config/status:
+  - `.env.example` documents rotation vars,
+  - `README.md` documents behavior and env vars,
+  - `ROADMAP.md` marks `anti-detection profile rotation` complete.
+
+### Tester/Evaluator
+- Targeted regression:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py -k "profile_dir_for_provider"`
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+
+### Outcome
+- Milestone slice implemented; validation below determines commit/push readiness.

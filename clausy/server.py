@@ -91,6 +91,8 @@ CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
 PROFILE_DIR = os.environ.get("CLAUSY_PROFILE_DIR", "./profile").strip()
 PROFILE_BY_PROVIDER_RAW = os.environ.get("CLAUSY_PROFILE_BY_PROVIDER", "").strip()
+PROFILE_ROTATION_ENABLED = _env_flag(os.environ.get("CLAUSY_PROFILE_ROTATION_ENABLED"), default=False)
+PROFILE_ROTATION_COUNT = max(0, int(os.environ.get("CLAUSY_PROFILE_ROTATION_COUNT", "0")))
 
 BIND = os.environ.get("CLAUSY_BIND", "0.0.0.0")
 PORT = int(os.environ.get("CLAUSY_PORT", "3108"))
@@ -174,6 +176,7 @@ _session_meta: Dict[str, Dict[str, Any]] = {}  # {turns:int, summary:str, resets
 _event_log = deque(maxlen=max(1, EVENT_LOG_MAX_ITEMS))
 _event_seq = 0
 _event_lock = threading.Lock()
+_profile_rotation_counter: Dict[str, int] = {}
 
 
 def _new_request_id() -> str:
@@ -251,7 +254,13 @@ def _parse_provider_profile_map(raw: str | None) -> dict[str, str]:
 def _profile_dir_for_provider(provider_name: str | None) -> str:
     name = (provider_name or "").strip().lower()
     profile_map = _parse_provider_profile_map(PROFILE_BY_PROVIDER_RAW)
-    return profile_map.get(name, PROFILE_DIR)
+    base_profile = profile_map.get(name, PROFILE_DIR)
+    if not PROFILE_ROTATION_ENABLED or PROFILE_ROTATION_COUNT <= 1 or not name:
+        return base_profile
+    with _event_lock:
+        idx = _profile_rotation_counter.get(name, 0)
+        _profile_rotation_counter[name] = (idx + 1) % PROFILE_ROTATION_COUNT
+    return f"{base_profile}-rot{idx + 1}"
 
 
 def _ensure_browser_profile(provider_name: str | None, session_id: str) -> None:
