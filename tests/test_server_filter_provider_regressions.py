@@ -369,6 +369,81 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
         broken.ensure_ready.assert_called()
         fallback.ensure_ready.assert_called()
 
+    def test_non_stream_falls_back_from_web_to_api_provider_on_web_failure(self):
+        broken_web = unittest.mock.Mock()
+        broken_web.ensure_ready.side_effect = RuntimeError("web down")
+
+        api_provider = unittest.mock.Mock()
+        api_provider.chat_completion.return_value = {
+            "choices": [{"message": {"role": "assistant", "content": "from api fallback"}, "finish_reason": "stop"}]
+        }
+
+        with patch("clausy.server.registry.get", return_value=broken_web), \
+            patch("clausy.server.browser.get_page", return_value=object()), \
+            patch("clausy.server.api_router.get", return_value=api_provider), \
+            patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), \
+            patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), \
+            patch("clausy.server._post_turn_housekeeping"):
+            old_auto = server.AUTO_MODEL_SWITCH
+            old_provider = server.PROVIDER_NAME
+            old_chain = server.FALLBACK_CHAIN_RAW
+            try:
+                server.AUTO_MODEL_SWITCH = False
+                server.PROVIDER_NAME = "chatgpt"
+                server.FALLBACK_CHAIN_RAW = "openai"
+                resp = self.client.post(
+                    "/v1/chat/completions",
+                    json={"model": "chatgpt-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"X-Clausy-Session": "switch3"},
+                )
+            finally:
+                server.AUTO_MODEL_SWITCH = old_auto
+                server.PROVIDER_NAME = old_provider
+                server.FALLBACK_CHAIN_RAW = old_chain
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["choices"][0]["message"]["content"], "from api fallback")
+        broken_web.ensure_ready.assert_called()
+        api_provider.chat_completion.assert_called_once()
+
+    def test_non_stream_falls_back_from_api_to_web_provider_on_api_failure(self):
+        broken_api = unittest.mock.Mock()
+        broken_api.chat_completion.side_effect = RuntimeError("api down")
+
+        web_provider = unittest.mock.Mock()
+        web_provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+
+        with patch("clausy.server.api_router.get", return_value=broken_api), \
+            patch("clausy.server.registry.get", return_value=web_provider), \
+            patch("clausy.server.browser.get_page", return_value=object()), \
+            patch("clausy.server.parse_or_repair_output", return_value={
+                "choices": [{"message": {"content": "from web fallback", "tool_calls": []}, "finish_reason": "stop"}]
+            }), \
+            patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), \
+            patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), \
+            patch("clausy.server._post_turn_housekeeping"):
+            old_auto = server.AUTO_MODEL_SWITCH
+            old_provider = server.PROVIDER_NAME
+            old_chain = server.FALLBACK_CHAIN_RAW
+            try:
+                server.AUTO_MODEL_SWITCH = False
+                server.PROVIDER_NAME = "openai"
+                server.FALLBACK_CHAIN_RAW = "chatgpt"
+                resp = self.client.post(
+                    "/v1/chat/completions",
+                    json={"model": "openai-api", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"X-Clausy-Session": "switch4"},
+                )
+            finally:
+                server.AUTO_MODEL_SWITCH = old_auto
+                server.PROVIDER_NAME = old_provider
+                server.FALLBACK_CHAIN_RAW = old_chain
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["choices"][0]["message"]["content"], "from web fallback")
+        broken_api.chat_completion.assert_called_once()
+        web_provider.ensure_ready.assert_called()
+
 
 class EventLogRegressionTests(unittest.TestCase):
     def setUp(self):

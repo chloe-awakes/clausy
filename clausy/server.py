@@ -705,7 +705,8 @@ def chat_completions():
         detail={"provider": active_provider, "fallback_chain": provider_candidates[1:], "stream": stream, "model": model, "request_id": request_id},
     )
 
-    if is_api_provider(active_provider):
+    initial_fallback_error: Exception | None = None
+    if stream and is_api_provider(active_provider):
         last_error: Exception | None = None
         for candidate in provider_candidates:
             if not is_api_provider(candidate):
@@ -742,13 +743,15 @@ def chat_completions():
             except (APIProviderError, Exception) as e:
                 last_error = e
                 continue
-        return _provider_error_response(last_error or RuntimeError("No available API fallback provider"))
+        if all(is_api_provider(candidate) for candidate in provider_candidates):
+            return _provider_error_response(last_error or RuntimeError("No available API fallback provider"))
+        initial_fallback_error = last_error
 
     meta = _get_meta(session_id)
     provider = None
     page = None
     selected_provider_name = None
-    last_error: Exception | None = None
+    last_error: Exception | None = initial_fallback_error
     for candidate in provider_candidates:
         if is_api_provider(candidate):
             continue
@@ -762,7 +765,42 @@ def chat_completions():
             last_error = e
             continue
     if provider is None or page is None:
-        return _provider_error_response(last_error or RuntimeError("No available web fallback provider"))
+        for candidate in provider_candidates:
+            if not is_api_provider(candidate):
+                continue
+            try:
+                api_provider = api_router.get(candidate)
+                if stream:
+                    lines = api_provider.chat_completion(data, stream=True)
+
+                    def _gen():
+                        for line in lines:
+                            if line:
+                                yield f"{line}\n"
+
+                    return Response(stream_with_context(_gen()), mimetype="text/event-stream")
+
+                raw = api_provider.chat_completion(data, stream=False)
+                normalized = _normalize_openai_response(raw, model=model)
+                normalized = _sanitize_parsed_response(normalized)
+                normalized = _enforce_tool_password(normalized)
+                msg = normalized.get("choices", [{}])[0].get("message", {}) if isinstance(normalized, dict) else {}
+                _log_event(
+                    session_id=session_id,
+                    event_type="response",
+                    detail={
+                        "finish_reason": (normalized.get("choices", [{}])[0].get("finish_reason") if isinstance(normalized, dict) else None),
+                        "has_tool_calls": isinstance(msg.get("tool_calls"), list) and len(msg.get("tool_calls")) > 0,
+                        "stream": False,
+                        "request_id": request_id,
+                        "provider": candidate,
+                    },
+                )
+                return jsonify(normalized)
+            except (APIProviderError, Exception) as e:
+                last_error = e
+                continue
+        return _provider_error_response(last_error or RuntimeError("No available provider fallback"))
     active_provider = selected_provider_name or active_provider
 
     trimmed = trim_request(data, meta.get("summary") or "")
@@ -1050,39 +1088,42 @@ def chat_completions():
         )
 
     # Non-stream path
-    raw_reply = None
+    parsed = None
     non_stream_error: Exception | None = None
     for candidate in provider_candidates:
-        if is_api_provider(candidate):
-            continue
         try:
-            cand_provider = registry.get(candidate)
-            cand_page = browser.get_page(session_id)
-            with _playwright_lock:
-                cand_provider.ensure_ready(cand_page)
-                cand_provider.send_prompt(cand_page, prompt)
-                cand_provider.wait_done(cand_page)
-                raw_reply = cand_provider.get_last_assistant_text(cand_page)
-            provider = cand_provider
-            page = cand_page
+            if is_api_provider(candidate):
+                api_provider = api_router.get(candidate)
+                raw = api_provider.chat_completion(data, stream=False)
+                parsed = _normalize_openai_response(raw, model=model)
+                provider = None
+                page = None
+            else:
+                cand_provider = registry.get(candidate)
+                cand_page = browser.get_page(session_id)
+                with _playwright_lock:
+                    cand_provider.ensure_ready(cand_page)
+                    cand_provider.send_prompt(cand_page, prompt)
+                    cand_provider.wait_done(cand_page)
+                    raw_reply = cand_provider.get_last_assistant_text(cand_page)
+                provider = cand_provider
+                page = cand_page
+                parsed = parse_or_repair_output(
+                    raw_text=raw_reply,
+                    ask_fn=lambda p: _ask_repair(cand_provider, cand_page, p),
+                    model_name_for_fallback=model,
+                    max_repairs=MAX_REPAIRS,
+                )
             active_provider = candidate
             non_stream_error = None
             break
         except Exception as e:
             non_stream_error = e
+            parsed = None
             continue
-    if raw_reply is None:
-        return _provider_error_response(non_stream_error or RuntimeError("No available web fallback provider"))
+    if parsed is None:
+        return _provider_error_response(non_stream_error or RuntimeError("No available provider fallback"))
 
-    try:
-        parsed = parse_or_repair_output(
-            raw_text=raw_reply,
-            ask_fn=lambda p: _ask_repair(provider, page, p),
-            model_name_for_fallback=model,
-            max_repairs=MAX_REPAIRS,
-        )
-    except Exception as e:
-        return _provider_error_response(e)
     parsed = _sanitize_parsed_response(parsed)
     parsed = _enforce_tool_password(parsed)
 
