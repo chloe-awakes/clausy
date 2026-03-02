@@ -1076,3 +1076,28 @@ Release-readiness revalidation (post-roadmap maintenance cycle).
 ### Outcome
 - Milestone slice passed on first run; no immediate follow-up fix required.
 - Ready for commit/push to `main`.
+
+## 2026-03-03 00:17 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Release-readiness revalidation (post-roadmap maintenance cycle).
+
+### Planner
+- Confirmed `ROADMAP.md` contains no unchecked milestones.
+- Selected highest-priority unfinished milestone slice: release gate revalidation.
+- Planned single-cycle execution via `scripts/release-gate.sh` with one immediate fix-and-rerun allowance if needed.
+
+### Executor
+- Ran `scripts/release-gate.sh`.
+- Recorded evidence in `docs/plans/2026-03-03-release-gate-revalidation-cycle-17.md`.
+
+### Tester/Evaluator
+- Full suite run: **113 passed**
+- Targeted routing/provider regressions: **40 passed**
+- Installer smoke check: **passed**
+- Package build check: **passed**
+- Overall release gate: **PASS**
+
+### Outcome
+- Milestone slice passed on first run; no immediate follow-up fix required.
+- Ready for commit/push to `main`.
