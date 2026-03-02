@@ -493,6 +493,12 @@ Run all tests offline:
 .venv/bin/python -m pytest -q
 ```
 
+Run the full release gate (tests + targeted routing/provider checks + install/build smoke):
+
+```bash
+scripts/release-gate.sh
+```
+
 Run grouped suites:
 
 ```bash

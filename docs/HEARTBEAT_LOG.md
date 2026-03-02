@@ -652,3 +652,28 @@ Release readiness maintenance after roadmap completion (all roadmap milestones r
 ### Outcome
 - Revalidation slice passed; no immediate follow-up fix required.
 - Ready for commit/push.
+
+## 2026-03-02 15:26 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Release-hardening maintenance after roadmap completion: make release revalidation one-command and repeatable.
+
+### Planner
+- Add a reusable release gate script for full tests + targeted routing/provider checks + install/build smoke.
+- Document the command and capture fresh evidence.
+
+### Executor
+- Added `scripts/release-gate.sh`.
+- Updated `README.md` testing section with the new command.
+- Added evidence file: `docs/plans/2026-03-02-release-gate-hardening-cycle.md`.
+
+### Tester/Evaluator
+- `scripts/release-gate.sh`
+  - Full suite: **113 passed**
+  - Targeted routing/provider checks: **40 passed**
+  - Installer smoke: **passed**
+  - Build package: **passed**
+
+### Outcome
+- Release gate hardening slice passed.
+- Ready for commit/push.
