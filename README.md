@@ -354,6 +354,7 @@ Set one of:
 CLAUSY_PROVIDER=openai
 CLAUSY_PROVIDER=anthropic
 CLAUSY_PROVIDER=ollama
+CLAUSY_PROVIDER=gemini
 ```
 
 Required env vars:
@@ -361,6 +362,7 @@ Required env vars:
 - OpenAI: `CLAUSY_OPENAI_API_KEY`, optional `CLAUSY_OPENAI_BASE_URL`
 - Anthropic: `CLAUSY_ANTHROPIC_API_KEY`, optional `CLAUSY_ANTHROPIC_BASE_URL`
 - Ollama: optional `CLAUSY_OLLAMA_API_KEY`, optional `CLAUSY_OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`)
+- Gemini: `CLAUSY_GEMINI_API_KEY`, optional `CLAUSY_GEMINI_BASE_URL` (default `https://generativelanguage.googleapis.com/v1beta`)
 
 Notes:
 - Non-stream responses are normalized into OpenAI Chat Completions JSON shape.
