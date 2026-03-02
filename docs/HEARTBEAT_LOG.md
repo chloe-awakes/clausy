@@ -356,3 +356,42 @@ Model Control → **fallback chains (local → cloud → backup)**.
 
 ### Outcome
 - Milestone slice passed and is ready for commit/push.
+
+## 2026-03-02 11:08 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Model Control → **cost-aware routing**.
+
+### Planner
+- Confirmed next unchecked high-priority roadmap item was `cost-aware routing`.
+- Planned minimal vertical slice:
+  1. Add optional cost-aware candidate ordering on top of existing `primary + fallback` selection.
+  2. Keep feature gated behind explicit env toggle to preserve default behavior.
+  3. Add regression coverage for ordering semantics.
+  4. Update docs/config + roadmap checkbox.
+
+### Executor
+- Updated `clausy/server.py`:
+  - added `CLAUSY_COST_AWARE_ROUTING` and `CLAUSY_PROVIDER_COSTS` config,
+  - added `_parse_provider_costs(...)`,
+  - extended `_provider_candidates(...)` to sort by configured cost when enabled (stable tie-break by original order, unknown costs last).
+- Added regression test in `tests/test_server_filter_provider_regressions.py`:
+  - `test_provider_candidates_apply_cost_aware_sort_when_enabled`.
+- Updated docs/config/status:
+  - `.env.example` documents new cost-aware env vars,
+  - `README.md` documents behavior and examples,
+  - `ROADMAP.md` marks `cost-aware routing` complete.
+
+### Tester/Evaluator
+- Targeted regression:
+  - `.venv/bin/python -m pytest -q tests/test_server_filter_provider_regressions.py -k "provider_candidates"`
+  - **2 passed**
+- Routing/model regression gate:
+  - `.venv/bin/python -m pytest -q tests/test_models_endpoint.py tests/test_api_provider_routing.py tests/test_chat_completions_contracts.py tests/test_server_filter_provider_regressions.py`
+  - **53 passed**
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **103 passed**
+
+### Outcome
+- Milestone slice passed and is ready for commit/push.

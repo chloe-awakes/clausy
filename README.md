@@ -251,6 +251,8 @@ Environment variables:
 - `CLAUSY_PROVIDER` (default `chatgpt`)
 - `CLAUSY_AUTO_MODEL_SWITCH` (`0|1`, default `1`): auto-route each request by incoming model id (for example `claude-web` → Claude provider, `openai-api` → OpenAI API provider)
 - `CLAUSY_FALLBACK_CHAIN` (optional comma-separated provider names): ordered fallback providers to try when the selected provider fails (example: `ollama,openai,openrouter`)
+- `CLAUSY_COST_AWARE_ROUTING` (`0|1`, default `0`): reorder primary+fallback candidates by configured provider cost (lowest first)
+- `CLAUSY_PROVIDER_COSTS` (optional comma-separated `provider:cost` map): used when cost-aware routing is enabled (example: `ollama:0.1,openai:2.0,openrouter:3.5`)
 - `CLAUSY_CHATGPT_URL` (default `https://chatgpt.com`)
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
@@ -416,6 +418,7 @@ Notes:
 - Browser providers (`chatgpt`, `claude`, `grok`, `gemini_web`, `perplexity`, `poe`, `deepseek`) are unchanged.
 - With `CLAUSY_AUTO_MODEL_SWITCH=1`, Clausy can keep one default provider while automatically routing requests by `model` (`chatgpt-web`, `claude-web`, `openai-api`, etc.).
 - If `CLAUSY_FALLBACK_CHAIN` is set, Clausy retries providers in that order when the primary provider errors (first successful provider wins).
+- If `CLAUSY_COST_AWARE_ROUTING=1`, Clausy reorders the candidate list (`primary + fallback chain`) by `CLAUSY_PROVIDER_COSTS` so cheaper providers are attempted first.
 
 Optional URLs:
 

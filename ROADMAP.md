@@ -70,7 +70,7 @@ Planned:
 
 - [x] automatic model switching
 - [x] fallback chains (local → cloud → backup)
-- [ ] cost-aware routing
+- [x] cost-aware routing
 
 ---
 

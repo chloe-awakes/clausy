@@ -57,6 +57,8 @@ def _env_flag(raw: str | None, *, default: bool = False) -> bool:
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 AUTO_MODEL_SWITCH = _env_flag(os.environ.get("CLAUSY_AUTO_MODEL_SWITCH"), default=True)
 FALLBACK_CHAIN_RAW = os.environ.get("CLAUSY_FALLBACK_CHAIN", "").strip()
+COST_AWARE_ROUTING = _env_flag(os.environ.get("CLAUSY_COST_AWARE_ROUTING"), default=False)
+PROVIDER_COSTS_RAW = os.environ.get("CLAUSY_PROVIDER_COSTS", "").strip()
 
 WEB_PROVIDER_MODELS = {
     "chatgpt": "chatgpt-web",
@@ -208,6 +210,25 @@ def _parse_fallback_chain(raw: str | None) -> list[str]:
     return out
 
 
+def _parse_provider_costs(raw: str | None) -> dict[str, float]:
+    if not raw:
+        return {}
+    costs: dict[str, float] = {}
+    for item in raw.split(","):
+        token = (item or "").strip()
+        if not token or ":" not in token:
+            continue
+        name, value = token.split(":", 1)
+        provider = name.strip().lower()
+        if not provider:
+            continue
+        try:
+            costs[provider] = float(value.strip())
+        except ValueError:
+            continue
+    return costs
+
+
 def _provider_candidates(model: str | None) -> list[str]:
     primary = _resolve_provider_name(model).strip().lower()
     seen: set[str] = set()
@@ -217,7 +238,16 @@ def _provider_candidates(model: str | None) -> list[str]:
             continue
         seen.add(name)
         ordered.append(name)
-    return ordered or [primary]
+    if not ordered:
+        ordered = [primary]
+    if COST_AWARE_ROUTING and len(ordered) > 1:
+        costs = _parse_provider_costs(PROVIDER_COSTS_RAW)
+        order_index = {name: idx for idx, name in enumerate(ordered)}
+        ordered = sorted(
+            ordered,
+            key=lambda name: (costs.get(name, float("inf")), order_index[name]),
+        )
+    return ordered
 
 
 def _tool_password_required() -> bool:
