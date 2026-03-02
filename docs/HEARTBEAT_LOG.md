@@ -627,3 +627,28 @@ Release readiness gate after roadmap completion (no unchecked `ROADMAP.md` items
 
 ### Outcome
 - Release-ready validation slice passed and is ready for commit/push.
+
+## 2026-03-02 15:16 (Europe/Berlin)
+
+### Milestone selected (highest-priority unfinished)
+Release readiness maintenance after roadmap completion (all roadmap milestones remain checked).
+
+### Planner
+- Re-validated there are no unchecked roadmap milestones.
+- Selected a release-ready revalidation slice per `HEARTBEAT.md` criteria.
+- Planned cycle: run full tests, run installer smoke check, capture evidence, commit/push if green.
+
+### Executor
+- Added evidence file: `docs/plans/2026-03-02-release-ready-revalidation-cycle.md`.
+
+### Tester/Evaluator
+- Full suite:
+  - `.venv/bin/python -m pytest -q`
+  - **113 passed**
+- Smoke check:
+  - `.venv/bin/python -m clausy.install --dry-run`
+  - **passed** (expected command plan emitted)
+
+### Outcome
+- Revalidation slice passed; no immediate follow-up fix required.
+- Ready for commit/push.
