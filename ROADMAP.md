@@ -35,7 +35,7 @@ Implemented:
 
 Planned:
 
-- [ ] Gemini
+- [x] Gemini
 
 - [ ] Perplexity
 - [ ] Poe

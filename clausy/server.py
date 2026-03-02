@@ -44,6 +44,7 @@ PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 CHATGPT_URL = os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com").strip()
 CLAUDE_URL = os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai").strip()
 GROK_URL = os.environ.get("CLAUSY_GROK_URL", "https://grok.com").strip()
+GEMINI_WEB_URL = os.environ.get("CLAUSY_GEMINI_WEB_URL", "https://gemini.google.com").strip()
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
@@ -66,7 +67,12 @@ RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "
 
 # Global state
 browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
-registry = ProviderRegistry.default(chatgpt_url=CHATGPT_URL, claude_url=CLAUDE_URL, grok_url=GROK_URL)
+registry = ProviderRegistry.default(
+    chatgpt_url=CHATGPT_URL,
+    claude_url=CLAUDE_URL,
+    grok_url=GROK_URL,
+    gemini_web_url=GEMINI_WEB_URL,
+)
 api_router = APIProviderRouter()
 
 web_search = WebSearchService()
@@ -274,6 +280,7 @@ def list_models():
         "chatgpt": "chatgpt-web",
         "claude": "claude-web",
         "grok": "grok-web",
+        "gemini_web": "gemini-web",
     }
     if is_api_provider(PROVIDER_NAME):
         model_id = f"{PROVIDER_NAME}-api"

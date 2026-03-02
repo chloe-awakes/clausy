@@ -61,7 +61,7 @@ Clausy behaves like a normal LLM server externally but internally communicates w
 - tool-call user notification (e.g. `Running tool: exec (ls -la)`)
 - per-session browser tabs (`X-Clausy-Session` header)
 - secret filtering and leak prevention
-- provider abstraction layer (ChatGPT + Claude web providers)
+- provider abstraction layer (ChatGPT + Claude + Grok + Gemini web providers)
 
 Example tool-call notification:
 
@@ -77,11 +77,11 @@ Implemented:
 
 - ChatGPT Web
 - Claude Web
+- Grok Web
+- Gemini Web
 
 Planned:
 
-- Gemini
-- Grok
 - Perplexity
 - Poe
 - DeepSeek Web
@@ -229,6 +229,7 @@ Environment variables:
 - `CLAUSY_CHATGPT_URL` (default `https://chatgpt.com`)
 - `CLAUSY_CLAUDE_URL` (default `https://claude.ai`)
 - `CLAUSY_GROK_URL` (default `https://grok.com`)
+- `CLAUSY_GEMINI_WEB_URL` (default `https://gemini.google.com`)
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)
@@ -342,6 +343,7 @@ Set:
 CLAUSY_PROVIDER=chatgpt
 CLAUSY_PROVIDER=claude
 CLAUSY_PROVIDER=grok
+CLAUSY_PROVIDER=gemini_web
 ```
 
 ## Providers (API mode)
@@ -375,6 +377,7 @@ Optional URLs:
 - `CLAUSY_CHATGPT_URL=https://chatgpt.com`
 - `CLAUSY_CLAUDE_URL=https://claude.ai`
 - `CLAUSY_GROK_URL=https://grok.com`
+- `CLAUSY_GEMINI_WEB_URL=https://gemini.google.com`
 
 To inspect selectors:
 
