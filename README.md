@@ -107,6 +107,7 @@ or
 {"tool_calls":[...]}
 ```
 
+For tool calls, `tool_calls[].function.arguments` must be a JSON-encoded **object** string.
 Tool calls are collected and returned to the client.
 
 > ⚠️ Experimental. Browser UIs change often. Use at your own risk.

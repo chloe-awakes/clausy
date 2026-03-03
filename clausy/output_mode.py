@@ -23,7 +23,7 @@ def output_mode_header() -> str:
         f"If you output {MARK_TOOLS}:\n"
         "- Output ONLY a single valid JSON object inside ONE ```json``` code block.\n"
         "- The JSON MUST contain tool_calls in OpenAI format.\n"
-        "- tool_calls[].function.arguments MUST be a JSON-encoded STRING.\n"
+        "- tool_calls[].function.arguments MUST be a JSON-encoded OBJECT string.\n"
         "- Do NOT output any other text.\n\n"
         "<<<INPUT>>>\n"
     )
@@ -36,10 +36,9 @@ def _extract_json_candidate(text: str) -> Optional[str]:
         return None
     return m.group(1).strip()
 
-def _is_json_string(s: str) -> bool:
+def _is_json_object_string(s: str) -> bool:
     try:
-        json.loads(s)
-        return True
+        return isinstance(json.loads(s), dict)
     except Exception:
         return False
 
@@ -61,8 +60,8 @@ def _validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
         args = fn.get("arguments")
         if not isinstance(args, str):
             return (False, "tool_calls[].function.arguments must be a JSON-encoded string")
-        if not _is_json_string(args):
-            return (False, "tool_calls[].function.arguments is not valid JSON string")
+        if not _is_json_object_string(args):
+            return (False, "tool_calls[].function.arguments must encode a JSON object")
 
     return (True, "ok")
 
@@ -144,6 +143,7 @@ def build_repair_prompt(invalid_output: str, expected_mode: Optional[str]) -> st
         mode_rule = (
             f"- Your output MUST start with {MARK_TOOLS}.\n"
             "- After the marker, output ONLY one ```json``` code block with a JSON object containing tool_calls.\n"
+            "- Each tool_calls[].function.arguments must be a JSON-encoded OBJECT string.\n"
             "- No other text.\n"
         )
     else:

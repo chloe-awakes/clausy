@@ -33,10 +33,9 @@ def extract_json_candidate(text: str) -> Optional[str]:
         return None
     return m.group(1).strip()
 
-def _is_json_string(s: str) -> bool:
+def _is_json_object_string(s: str) -> bool:
     try:
-        json.loads(s)
-        return True
+        return isinstance(json.loads(s), dict)
     except Exception:
         return False
 
@@ -86,8 +85,8 @@ def validate_chat_completion_schema(obj: Dict[str, Any]) -> Tuple[bool, str]:
             args = fn.get("arguments")
             if not isinstance(args, str):
                 return (False, "tool_calls[].function.arguments must be a JSON-encoded string")
-            if not _is_json_string(args):
-                return (False, "tool_calls[].function.arguments is not valid JSON string")
+            if not _is_json_object_string(args):
+                return (False, "tool_calls[].function.arguments must encode a JSON object")
 
     if "finish_reason" not in c0:
         return (False, "choices[0].finish_reason missing")
@@ -114,7 +113,7 @@ def build_repair_prompt(invalid_output: str, require_toolcalls: Optional[bool]) 
         "- Top-level must be a chat.completion object.\n"
         "- object field must be exactly \"chat.completion\".\n"
         "- choices[0].message must include role and (content or tool_calls).\n"
-        "- If tool_calls are present: each tool_calls[].function.arguments MUST be a JSON-encoded STRING.\n"
+        "- If tool_calls are present: each tool_calls[].function.arguments MUST be a JSON-encoded OBJECT string.\n"
         f"{tool_rule}"
         "Do NOT change the meaning—only repair formatting/schema.\n"
         "Here is the invalid output to fix:\n"
