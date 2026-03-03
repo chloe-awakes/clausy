@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 import math
+import re
 import threading
 from collections import deque
 from typing import Dict, Any
@@ -204,13 +205,16 @@ def _resolve_provider_name(model: str | None) -> str:
     return _provider_for_model(model) or PROVIDER_NAME
 
 
+_FALLBACK_TOKEN_RE = re.compile(r"^[a-z0-9_-]+$")
+
+
 def _parse_fallback_chain(raw: str | None) -> list[str]:
     if not raw:
         return []
     out: list[str] = []
     for item in raw.split(","):
         name = (item or "").strip().lower()
-        if not name:
+        if not name or not _FALLBACK_TOKEN_RE.fullmatch(name):
             continue
         out.append(name)
     return out

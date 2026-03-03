@@ -260,6 +260,20 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server.PROVIDER_NAME = old_provider
             server.FALLBACK_CHAIN_RAW = old_chain
 
+    def test_provider_candidates_drop_invalid_fallback_tokens(self):
+        old_auto = server.AUTO_MODEL_SWITCH
+        old_provider = server.PROVIDER_NAME
+        old_chain = server.FALLBACK_CHAIN_RAW
+        try:
+            server.AUTO_MODEL_SWITCH = False
+            server.PROVIDER_NAME = "chatgpt"
+            server.FALLBACK_CHAIN_RAW = " claude , gpt/4o , ;rm -rf , openrouter , grok:web "
+            self.assertEqual(server._provider_candidates(None), ["chatgpt", "claude", "openrouter"])
+        finally:
+            server.AUTO_MODEL_SWITCH = old_auto
+            server.PROVIDER_NAME = old_provider
+            server.FALLBACK_CHAIN_RAW = old_chain
+
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR
