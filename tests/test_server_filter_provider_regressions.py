@@ -354,6 +354,35 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
         mock_switch_profile.assert_not_called()
 
     @patch("clausy.server.browser.switch_profile")
+    def test_ensure_browser_profile_uses_safe_default_profile_dir_when_mapping_missing(self, mock_switch_profile):
+        old_default = server.PROFILE_DIR
+        old_raw = server.PROFILE_BY_PROVIDER_RAW
+        try:
+            server.PROFILE_DIR = "./profile-default"
+            server.PROFILE_BY_PROVIDER_RAW = ""
+            mock_switch_profile.return_value = False
+            server._ensure_browser_profile("claude", "switch-profile-default-safe")
+        finally:
+            server.PROFILE_DIR = old_default
+            server.PROFILE_BY_PROVIDER_RAW = old_raw
+
+        mock_switch_profile.assert_called_once_with("./profile-default")
+
+    @patch("clausy.server.browser.switch_profile")
+    def test_ensure_browser_profile_rejects_unsafe_default_profile_dir_when_mapping_missing(self, mock_switch_profile):
+        old_default = server.PROFILE_DIR
+        old_raw = server.PROFILE_BY_PROVIDER_RAW
+        try:
+            server.PROFILE_DIR = "../escape"
+            server.PROFILE_BY_PROVIDER_RAW = ""
+            server._ensure_browser_profile("claude", "switch-profile-default-unsafe")
+        finally:
+            server.PROFILE_DIR = old_default
+            server.PROFILE_BY_PROVIDER_RAW = old_raw
+
+        mock_switch_profile.assert_not_called()
+
+    @patch("clausy.server.browser.switch_profile")
     @patch("clausy.server.registry.get")
     @patch("clausy.server.browser.get_page")
     def test_non_stream_switches_browser_profile_for_selected_provider(self, mock_get_page, mock_registry_get, mock_switch_profile):
@@ -374,6 +403,35 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         mock_switch_profile.assert_called()
+
+    @patch("clausy.server.browser.switch_profile")
+    @patch("clausy.server.registry.get")
+    @patch("clausy.server.browser.get_page")
+    def test_non_stream_rejects_unsafe_default_profile_fallback_without_breaking_response(self, mock_get_page, mock_registry_get, mock_switch_profile):
+        provider = unittest.mock.Mock()
+        provider.get_last_assistant_text.return_value = "<<<CONTENT>>>\nignored"
+        mock_registry_get.return_value = provider
+        mock_get_page.return_value = object()
+
+        old_default = server.PROFILE_DIR
+        old_raw = server.PROFILE_BY_PROVIDER_RAW
+        try:
+            server.PROFILE_DIR = "../escape"
+            server.PROFILE_BY_PROVIDER_RAW = ""
+            with patch("clausy.server.parse_or_repair_output", return_value={
+                "choices": [{"message": {"content": "ok", "tool_calls": []}, "finish_reason": "stop"}]
+            }), patch("clausy.server._sanitize_parsed_response", side_effect=lambda parsed: parsed), patch("clausy.server._get_meta", return_value={"turns": 0, "summary": ""}), patch("clausy.server._post_turn_housekeeping"):
+                resp = self.client.post(
+                    "/v1/chat/completions",
+                    json={"model": "claude-web", "stream": False, "messages": [{"role": "user", "content": "hello"}]},
+                    headers={"X-Clausy-Session": "switch-profile-default-unsafe-e2e"},
+                )
+        finally:
+            server.PROFILE_DIR = old_default
+            server.PROFILE_BY_PROVIDER_RAW = old_raw
+
+        self.assertEqual(resp.status_code, 200)
+        mock_switch_profile.assert_not_called()
 
     def test_resolve_provider_name_uses_model_mapping_when_enabled(self):
         old_auto = server.AUTO_MODEL_SWITCH
