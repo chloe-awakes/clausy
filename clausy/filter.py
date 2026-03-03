@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 _DEFAULT_SCAN_PATH = os.path.expanduser("~/.openclaw")
 _PATH_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+logger = logging.getLogger(__name__)
 
 # Hard patterns (independent of "known secrets")
 _PEM_PRIVATE_KEY_RE = re.compile(
@@ -277,6 +279,35 @@ class ProfanityFilterConfig:
     block_message: str = "Content blocked by safety filter."
 
 
+def _env_int_bounded(
+    raw: str | None,
+    *,
+    var_name: str,
+    default: int,
+    min_value: int,
+    max_value: int,
+) -> int:
+    if raw is None or not str(raw).strip():
+        return default
+    val = str(raw).strip()
+    try:
+        parsed = int(val)
+    except Exception:
+        logger.warning("%s=%r is invalid; using %d", var_name, val, default)
+        return default
+    if not (min_value <= parsed <= max_value):
+        logger.warning(
+            "%s=%d is out of range (valid range is %d-%d); using %d",
+            var_name,
+            parsed,
+            min_value,
+            max_value,
+            default,
+        )
+        return default
+    return parsed
+
+
 def load_filter_config_from_env() -> FilterConfig:
     mode = os.environ.get("CLAUSY_FILTER_MODE", "smart").strip().lower()
     scan_openclaw = os.environ.get("CLAUSY_FILTER_SCAN_OPENCLAW", "1").strip() not in ("0", "false", "no")
@@ -287,8 +318,20 @@ def load_filter_config_from_env() -> FilterConfig:
             scan_paths = (_DEFAULT_SCAN_PATH,)
     else:
         scan_paths = (_DEFAULT_SCAN_PATH,)
-    max_bytes = int(os.environ.get("CLAUSY_FILTER_MAX_BYTES", "2000000"))
-    max_tail = int(os.environ.get("CLAUSY_FILTER_MAX_TAIL", "32768"))
+    max_bytes = _env_int_bounded(
+        os.environ.get("CLAUSY_FILTER_MAX_BYTES"),
+        var_name="CLAUSY_FILTER_MAX_BYTES",
+        default=2_000_000,
+        min_value=1,
+        max_value=200_000_000,
+    )
+    max_tail = _env_int_bounded(
+        os.environ.get("CLAUSY_FILTER_MAX_TAIL"),
+        var_name="CLAUSY_FILTER_MAX_TAIL",
+        default=32_768,
+        min_value=1,
+        max_value=2_000_000,
+    )
     enable_prefix = os.environ.get("CLAUSY_FILTER_PREFIX_PATTERNS", "0").strip() in ("1", "true", "yes")
     return FilterConfig(
         mode=mode,

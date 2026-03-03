@@ -22,13 +22,20 @@ def _snip(s: str, n: int = 240) -> str:
     s = (s or "").replace("\n", " ").strip()
     return s[:n] + ("…" if len(s) > n else "")
 
+def _env_int(raw: str | None, default: int) -> int:
+    try:
+        return int(str(raw).strip()) if raw is not None and str(raw).strip() else default
+    except Exception:
+        return default
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--provider", default=os.environ.get("CLAUSY_PROVIDER", "chatgpt"))
     ap.add_argument("--chatgpt-url", default=os.environ.get("CLAUSY_CHATGPT_URL", "https://chatgpt.com"))
     ap.add_argument("--claude-url", default=os.environ.get("CLAUSY_CLAUDE_URL", "https://claude.ai"))
     ap.add_argument("--cdp-host", default=os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1"))
-    ap.add_argument("--cdp-port", type=int, default=int(os.environ.get("CLAUSY_CDP_PORT", "9200")))
+    ap.add_argument("--cdp-port", type=int, default=_env_int(os.environ.get("CLAUSY_CDP_PORT"), 9200))
     args = ap.parse_args()
 
     reg = ProviderRegistry.default(chatgpt_url=args.chatgpt_url, claude_url=args.claude_url)
