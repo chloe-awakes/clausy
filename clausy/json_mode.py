@@ -4,6 +4,8 @@ import time
 import uuid
 from typing import Callable, Tuple, Optional, Dict, Any
 
+from .tool_call_validator import validate_tool_calls
+
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
 KNOWN_TOOL_NAMES_DEFAULT = {"exec", "read", "write", "web_search"}
@@ -32,12 +34,6 @@ def extract_json_candidate(text: str) -> Optional[str]:
     if not m:
         return None
     return m.group(1).strip()
-
-def _is_json_object_string(s: str) -> bool:
-    try:
-        return isinstance(json.loads(s), dict)
-    except Exception:
-        return False
 
 def validate_chat_completion_schema(obj: Dict[str, Any]) -> Tuple[bool, str]:
     if not isinstance(obj, dict):
@@ -70,26 +66,9 @@ def validate_chat_completion_schema(obj: Dict[str, Any]) -> Tuple[bool, str]:
         if not (isinstance(content, str) or content is None):
             return (False, "message.content must be string or null")
     else:
-        if not isinstance(tool_calls, list) or not tool_calls:
-            return (False, "message.tool_calls must be a non-empty list when present")
-        for tc in tool_calls:
-            if not isinstance(tc, dict):
-                return (False, "tool_calls entries must be objects")
-            tool_call_id = tc.get("id")
-            if not isinstance(tool_call_id, str) or not tool_call_id.strip():
-                return (False, "tool_calls[].id must be a non-empty string")
-            if tc.get("type") != "function":
-                return (False, "tool_calls[].type must be 'function'")
-            fn = tc.get("function")
-            if not isinstance(fn, dict):
-                return (False, "tool_calls[].function missing or not an object")
-            if not isinstance(fn.get("name"), str) or not fn["name"]:
-                return (False, "tool_calls[].function.name missing/invalid")
-            args = fn.get("arguments")
-            if not isinstance(args, str):
-                return (False, "tool_calls[].function.arguments must be a JSON-encoded string")
-            if not _is_json_object_string(args):
-                return (False, "tool_calls[].function.arguments must encode a JSON object")
+        ok, reason = validate_tool_calls(tool_calls)
+        if not ok:
+            return (False, reason)
 
     if "finish_reason" not in c0:
         return (False, "choices[0].finish_reason missing")
