@@ -141,7 +141,7 @@ Equivalent manual steps:
 python -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install .
+pip install -e '.[dev]'
 playwright install chromium
 ```
 
@@ -524,6 +524,12 @@ Run all tests offline:
 
 ```bash
 .venv/bin/python -m pytest -q
+```
+
+If `pytest`/`build` are missing in your venv, install dev tooling first:
+
+```bash
+.venv/bin/python -m pip install -e '.[dev]'
 ```
 
 Run the full release gate (tests + targeted routing/provider checks + install/build smoke):
