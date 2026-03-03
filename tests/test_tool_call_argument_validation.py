@@ -93,3 +93,73 @@ def test_json_mode_schema_rejects_tool_call_id_when_not_non_empty_string():
 
     assert ok is False
     assert reason == "tool_calls[].id must be a non-empty string"
+
+
+def test_output_mode_rejects_tool_call_id_with_control_character():
+    payload = {"tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id="call_\n1")}
+    text = "```json\n" + json.dumps(payload) + "\n```"
+
+    parsed, reason = output_mode.parse_tools_json(text)
+
+    assert parsed is None
+    assert reason == "tool_calls[].id must not contain control characters"
+
+
+def test_json_mode_schema_rejects_tool_call_id_with_control_character():
+    obj = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "clausy",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id="call_\n1"),
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    ok, reason = json_mode.validate_chat_completion_schema(obj)
+
+    assert ok is False
+    assert reason == "tool_calls[].id must not contain control characters"
+
+
+def test_output_mode_rejects_tool_call_id_longer_than_128_chars():
+    payload = {"tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id=("c" * 129))}
+    text = "```json\n" + json.dumps(payload) + "\n```"
+
+    parsed, reason = output_mode.parse_tools_json(text)
+
+    assert parsed is None
+    assert reason == "tool_calls[].id must be <= 128 chars"
+
+
+def test_json_mode_schema_rejects_tool_call_id_longer_than_128_chars():
+    obj = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "clausy",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id=("c" * 129)),
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    ok, reason = json_mode.validate_chat_completion_schema(obj)
+
+    assert ok is False
+    assert reason == "tool_calls[].id must be <= 128 chars"

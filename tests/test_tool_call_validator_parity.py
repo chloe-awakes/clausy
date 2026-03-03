@@ -51,12 +51,28 @@ def test_shared_validator_rejects_non_json_arguments_with_expected_reason():
     assert reason == "tool_calls[].function.arguments must encode a JSON object"
 
 
+def test_shared_validator_rejects_control_character_in_id_with_expected_reason():
+    ok, reason = validate_tool_calls(_payload_with_tool_call({"id": "call_\n1"}))
+
+    assert ok is False
+    assert reason == "tool_calls[].id must not contain control characters"
+
+
+def test_shared_validator_rejects_id_longer_than_128_chars_with_expected_reason():
+    ok, reason = validate_tool_calls(_payload_with_tool_call({"id": "c" * 129}))
+
+    assert ok is False
+    assert reason == "tool_calls[].id must be <= 128 chars"
+
+
 def test_output_and_json_mode_use_same_reason_for_type_name_arguments_constraints():
     cases = [
         ({"type": "tool"}, "tool_calls[].type must be 'function'"),
         ({"function.name": ""}, "tool_calls[].function.name missing/invalid"),
         ({"function.name": "   "}, "tool_calls[].function.name missing/invalid"),
         ({"function.arguments": "not-json"}, "tool_calls[].function.arguments must encode a JSON object"),
+        ({"id": "call_\n1"}, "tool_calls[].id must not contain control characters"),
+        ({"id": "c" * 129}, "tool_calls[].id must be <= 128 chars"),
     ]
 
     for overrides, expected_reason in cases:

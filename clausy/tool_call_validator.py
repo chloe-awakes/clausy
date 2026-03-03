@@ -11,6 +11,10 @@ def _is_json_object_string(s: str) -> bool:
         return False
 
 
+def _contains_control_characters(s: str) -> bool:
+    return any((ord(ch) < 32) or (127 <= ord(ch) <= 159) for ch in s)
+
+
 def validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
     if not isinstance(tool_calls, list) or not tool_calls:
         return (False, "tool_calls must be a non-empty list")
@@ -21,6 +25,10 @@ def validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
         tool_call_id = tc.get("id")
         if not isinstance(tool_call_id, str) or not tool_call_id.strip():
             return (False, "tool_calls[].id must be a non-empty string")
+        if _contains_control_characters(tool_call_id):
+            return (False, "tool_calls[].id must not contain control characters")
+        if len(tool_call_id) > 128:
+            return (False, "tool_calls[].id must be <= 128 chars")
         if tc.get("type") != "function":
             return (False, "tool_calls[].type must be 'function'")
         fn = tc.get("function")
