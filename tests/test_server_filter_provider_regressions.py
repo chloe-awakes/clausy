@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from clausy.filter import FilterConfig, PrefixMatcher, SecretFilter
+from clausy.filter import FilterConfig, PrefixMatcher, SecretFilter, load_filter_config_from_env
 from clausy.providers.registry import ProviderRegistry
 import clausy.server as server
 from clausy.server import app
@@ -187,6 +187,20 @@ class ConversationManagementRegressionTests(unittest.TestCase):
         mock_get_page.assert_not_called()
         mock_restart.assert_called_once_with("s1")
         self.assertEqual(meta["requests_since_browser_restart"], 0)
+
+
+class FilterConfigPathSafetyRegressionTests(unittest.TestCase):
+    def test_filter_scan_paths_env_falls_back_to_default_when_all_entries_unsafe(self):
+        with patch.dict(os.environ, {"CLAUSY_FILTER_SCAN_PATHS": "../escape,..\\escape,\t"}, clear=False):
+            cfg = load_filter_config_from_env()
+
+        self.assertEqual(cfg.scan_paths, (os.path.expanduser("~/.openclaw"),))
+
+    def test_filter_scan_paths_env_drops_unsafe_entries_but_keeps_safe_ones(self):
+        with patch.dict(os.environ, {"CLAUSY_FILTER_SCAN_PATHS": "./safe,../escape,~/ok"}, clear=False):
+            cfg = load_filter_config_from_env()
+
+        self.assertEqual(cfg.scan_paths, ("./safe", os.path.expanduser("~/ok")))
 
 
 class ModelSwitchingRegressionTests(unittest.TestCase):

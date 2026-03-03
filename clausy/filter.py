@@ -6,6 +6,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
+
+_DEFAULT_SCAN_PATH = os.path.expanduser("~/.openclaw")
+_PATH_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+
 # Hard patterns (independent of "known secrets")
 _PEM_PRIVATE_KEY_RE = re.compile(
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+?-----END [A-Z ]*PRIVATE KEY-----",
@@ -101,6 +105,28 @@ def _collect_from_kv_text(txt: str) -> Set[str]:
             secrets.add(val)
     return secrets
 
+def _is_safe_scan_path(value: str) -> bool:
+    if not value:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return False
+    if _PATH_TRAVERSAL_SEGMENT_RE.search(value):
+        return False
+    return True
+
+
+def _sanitize_scan_paths(paths: Sequence[str]) -> Tuple[str, ...]:
+    safe: List[str] = []
+    for raw in paths:
+        p = os.path.expanduser((raw or "").strip())
+        if not p:
+            continue
+        if not _is_safe_scan_path(p):
+            continue
+        safe.append(p)
+    return tuple(safe)
+
+
 def collect_secrets_from_env() -> Set[str]:
     secrets: Set[str] = set()
     for k, v in os.environ.items():
@@ -114,8 +140,7 @@ def collect_secrets_from_env() -> Set[str]:
 
 def collect_secrets_from_paths(paths: Sequence[str], max_bytes: int = 2_000_000) -> Set[str]:
     secrets: Set[str] = set()
-    for p in paths:
-        p = os.path.expanduser(p)
+    for p in _sanitize_scan_paths(paths):
         if not os.path.exists(p):
             continue
         if os.path.isfile(p):
@@ -238,7 +263,7 @@ class PrefixMatcher:
 class FilterConfig:
     mode: str = "smart"  # smart|both|outbound|off
     scan_openclaw: bool = True
-    scan_paths: Tuple[str, ...] = (os.path.expanduser("~/.openclaw"),)
+    scan_paths: Tuple[str, ...] = (_DEFAULT_SCAN_PATH,)
     max_bytes: int = 2_000_000
     max_tail: int = 32_768
     enable_prefix_patterns: bool = False  # paranoia mode
@@ -257,9 +282,11 @@ def load_filter_config_from_env() -> FilterConfig:
     scan_openclaw = os.environ.get("CLAUSY_FILTER_SCAN_OPENCLAW", "1").strip() not in ("0", "false", "no")
     scan_paths_env = os.environ.get("CLAUSY_FILTER_SCAN_PATHS", "").strip()
     if scan_paths_env:
-        scan_paths = tuple(p.strip() for p in scan_paths_env.split(",") if p.strip())
+        scan_paths = _sanitize_scan_paths(scan_paths_env.split(","))
+        if not scan_paths:
+            scan_paths = (_DEFAULT_SCAN_PATH,)
     else:
-        scan_paths = (os.path.expanduser("~/.openclaw"),)
+        scan_paths = (_DEFAULT_SCAN_PATH,)
     max_bytes = int(os.environ.get("CLAUSY_FILTER_MAX_BYTES", "2000000"))
     max_tail = int(os.environ.get("CLAUSY_FILTER_MAX_TAIL", "32768"))
     enable_prefix = os.environ.get("CLAUSY_FILTER_PREFIX_PATTERNS", "0").strip() in ("1", "true", "yes")
