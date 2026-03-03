@@ -319,9 +319,18 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
         )
         self.assertEqual(profile_map, {"chatgpt": "./ok", "openrouter": "./good"})
 
+    def test_parse_provider_profile_map_drops_absolute_paths(self):
+        profile_map = server._parse_provider_profile_map(
+            "chatgpt:/tmp/chatgpt,claude:./profile-claude,openrouter:/var/tmp/openrouter"
+        )
+        self.assertEqual(profile_map, {"claude": "./profile-claude"})
 
     def test_env_profile_dir_falls_back_to_safe_default_when_unsafe(self):
         with patch.dict(os.environ, {"CLAUSY_PROFILE_DIR": "../escape"}, clear=False):
+            self.assertEqual(server._profile_dir_from_env(), "./profile")
+
+    def test_env_profile_dir_falls_back_to_safe_default_when_absolute(self):
+        with patch.dict(os.environ, {"CLAUSY_PROFILE_DIR": "/tmp/clausy-profile"}, clear=False):
             self.assertEqual(server._profile_dir_from_env(), "./profile")
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):

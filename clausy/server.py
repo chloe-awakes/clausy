@@ -214,12 +214,15 @@ def _resolve_provider_name(model: str | None) -> str:
 
 _FALLBACK_TOKEN_RE = re.compile(r"^[a-z0-9_-]+$")
 _PROFILE_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+_WINDOWS_ABS_PATH_RE = re.compile(r"^[a-zA-Z]:[\\/]")
 
 
 def _is_safe_profile_path(value: str) -> bool:
     if not value:
         return False
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return False
+    if os.path.isabs(value) or _WINDOWS_ABS_PATH_RE.match(value):
         return False
     if _PROFILE_TRAVERSAL_SEGMENT_RE.search(value):
         return False
