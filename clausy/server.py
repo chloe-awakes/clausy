@@ -143,7 +143,13 @@ CDP_PORT = _env_port(os.environ.get("CLAUSY_CDP_PORT"), var_name="CLAUSY_CDP_POR
 PROFILE_DIR = _profile_dir_from_env()
 PROFILE_BY_PROVIDER_RAW = os.environ.get("CLAUSY_PROFILE_BY_PROVIDER", "").strip()
 PROFILE_ROTATION_ENABLED = _env_flag(os.environ.get("CLAUSY_PROFILE_ROTATION_ENABLED"), default=False)
-PROFILE_ROTATION_COUNT = max(0, int(os.environ.get("CLAUSY_PROFILE_ROTATION_COUNT", "0")))
+PROFILE_ROTATION_COUNT = _env_int_bounded(
+    os.environ.get("CLAUSY_PROFILE_ROTATION_COUNT"),
+    var_name="CLAUSY_PROFILE_ROTATION_COUNT",
+    default=0,
+    min_value=0,
+    max_value=1000,
+)
 
 BIND = os.environ.get("CLAUSY_BIND", "0.0.0.0")
 PORT = _env_port(os.environ.get("CLAUSY_PORT"), var_name="CLAUSY_PORT", default=3108)
@@ -194,7 +200,13 @@ BROWSER_RESTART_EVERY_REQUESTS = _env_int_bounded(
 
 # Realtime event log (in-memory ring buffer)
 EVENT_LOG_ENABLED = _env_flag(os.environ.get("CLAUSY_EVENT_LOG_ENABLED"), default=True)
-EVENT_LOG_MAX_ITEMS = int(os.environ.get("CLAUSY_EVENT_LOG_MAX_ITEMS", "500"))
+EVENT_LOG_MAX_ITEMS = _env_int_bounded(
+    os.environ.get("CLAUSY_EVENT_LOG_MAX_ITEMS"),
+    var_name="CLAUSY_EVENT_LOG_MAX_ITEMS",
+    default=500,
+    min_value=1,
+    max_value=10000,
+)
 
 # Global state
 browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
