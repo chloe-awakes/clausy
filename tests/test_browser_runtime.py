@@ -7,7 +7,9 @@ from clausy.browser_runtime import BrowserRuntimeConfig, build_browser_launch_co
 
 
 class BrowserRuntimeDetectionTests(unittest.TestCase):
-    def test_detect_browser_binary_prefers_env_override(self):
+    @patch("clausy.browser_runtime.os.path.isfile", return_value=True)
+    @patch("clausy.browser_runtime.os.access", return_value=True)
+    def test_detect_browser_binary_prefers_env_override(self, _mock_access, _mock_isfile):
         with patch.dict(os.environ, {"CLAUSY_BROWSER_BINARY": "/custom/chrome"}, clear=False):
             got = detect_browser_binary(which=lambda _: None, platform="linux", playwright_binary=None)
         self.assertEqual(got, "/custom/chrome")
@@ -18,6 +20,37 @@ class BrowserRuntimeDetectionTests(unittest.TestCase):
                 which=lambda name: "/usr/bin/chromium" if name == "chromium" else None,
                 platform="linux",
                 playwright_binary=None,
+            )
+        self.assertEqual(got, "/usr/bin/chromium")
+
+    def test_detect_browser_binary_rejects_unsafe_env_override_and_falls_back(self):
+        with patch.dict(os.environ, {"CLAUSY_BROWSER_BINARY": "../escape/chrome"}, clear=False):
+            got = detect_browser_binary(
+                which=lambda name: "/usr/bin/chromium" if name == "chromium" else None,
+                platform="linux",
+                playwright_binary=None,
+            )
+        self.assertEqual(got, "/usr/bin/chromium")
+
+    @patch("clausy.browser_runtime.os.path.isfile")
+    @patch("clausy.browser_runtime.os.access")
+    def test_detect_browser_binary_rejects_non_executable_env_override_and_falls_back(self, mock_access, mock_isfile):
+        mock_isfile.return_value = False
+        mock_access.return_value = False
+        with patch.dict(os.environ, {"CLAUSY_BROWSER_BINARY": "/missing/chrome"}, clear=False):
+            got = detect_browser_binary(
+                which=lambda name: "/usr/bin/chromium" if name == "chromium" else None,
+                platform="linux",
+                playwright_binary=None,
+            )
+        self.assertEqual(got, "/usr/bin/chromium")
+
+    def test_detect_browser_binary_ignores_unsafe_playwright_binary_and_falls_back(self):
+        with patch.dict(os.environ, {}, clear=False):
+            got = detect_browser_binary(
+                which=lambda name: "/usr/bin/chromium" if name == "chromium" else None,
+                platform="linux",
+                playwright_binary="../pw/chrome",
             )
         self.assertEqual(got, "/usr/bin/chromium")
 

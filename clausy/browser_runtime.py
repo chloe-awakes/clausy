@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -8,6 +9,7 @@ from typing import Callable
 
 
 _BOOTSTRAP_MODES = {"auto", "always", "never"}
+_PATH_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,20 @@ def parse_bootstrap_mode(raw: str | None) -> str:
     return mode if mode in _BOOTSTRAP_MODES else "auto"
 
 
+def _is_safe_path(value: str | None) -> bool:
+    if not value:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return False
+    if _PATH_TRAVERSAL_SEGMENT_RE.search(value):
+        return False
+    return True
+
+
+def _is_executable_file(path: str) -> bool:
+    return os.path.isfile(path) and os.access(path, os.X_OK)
+
+
 def detect_browser_binary(
     *,
     which: Callable[[str], str | None] = shutil.which,
@@ -31,11 +47,11 @@ def detect_browser_binary(
     playwright_binary: str | None = None,
 ) -> str | None:
     override = (os.environ.get("CLAUSY_BROWSER_BINARY") or "").strip()
-    if override:
+    if override and _is_safe_path(override) and os.path.isabs(override) and _is_executable_file(override):
         return override
 
     candidates: list[str] = []
-    if playwright_binary:
+    if playwright_binary and _is_safe_path(playwright_binary) and os.path.isabs(playwright_binary):
         candidates.append(playwright_binary)
 
     if platform == "darwin":
@@ -50,11 +66,11 @@ def detect_browser_binary(
 
     for candidate in candidates:
         if os.path.isabs(candidate):
-            if os.path.exists(candidate):
+            if _is_safe_path(candidate) and _is_executable_file(candidate):
                 return candidate
             continue
         resolved = which(candidate)
-        if resolved:
+        if resolved and _is_safe_path(resolved):
             return resolved
     return None
 
