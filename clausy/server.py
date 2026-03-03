@@ -60,24 +60,43 @@ def _env_flag(raw: str | None, *, default: bool = False) -> bool:
     return default
 
 
-def _env_port(raw: str | None, *, var_name: str, default: int) -> int:
+def _env_int_bounded(
+    raw: str | None,
+    *,
+    var_name: str,
+    default: int,
+    min_value: int,
+    max_value: int,
+) -> int:
     if raw is None or not str(raw).strip():
         return default
     val = str(raw).strip()
     try:
-        port = int(val)
+        parsed = int(val)
     except Exception:
         logger.warning("%s=%r is invalid; using %d", var_name, val, default)
         return default
-    if not (1 <= port <= 65535):
+    if not (min_value <= parsed <= max_value):
         logger.warning(
-            "%s=%d is out of range (valid range is 1-65535); using %d",
+            "%s=%d is out of range (valid range is %d-%d); using %d",
             var_name,
-            port,
+            parsed,
+            min_value,
+            max_value,
             default,
         )
         return default
-    return port
+    return parsed
+
+
+def _env_port(raw: str | None, *, var_name: str, default: int) -> int:
+    return _env_int_bounded(
+        raw,
+        var_name=var_name,
+        default=default,
+        min_value=1,
+        max_value=65535,
+    )
 
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 AUTO_MODEL_SWITCH = _env_flag(os.environ.get("CLAUSY_AUTO_MODEL_SWITCH"), default=True)
@@ -127,8 +146,14 @@ PROFILE_ROTATION_ENABLED = _env_flag(os.environ.get("CLAUSY_PROFILE_ROTATION_ENA
 PROFILE_ROTATION_COUNT = max(0, int(os.environ.get("CLAUSY_PROFILE_ROTATION_COUNT", "0")))
 
 BIND = os.environ.get("CLAUSY_BIND", "0.0.0.0")
-PORT = int(os.environ.get("CLAUSY_PORT", "3108"))
-MAX_REPAIRS = int(os.environ.get("CLAUSY_MAX_REPAIRS", "2"))
+PORT = _env_port(os.environ.get("CLAUSY_PORT"), var_name="CLAUSY_PORT", default=3108)
+MAX_REPAIRS = _env_int_bounded(
+    os.environ.get("CLAUSY_MAX_REPAIRS"),
+    var_name="CLAUSY_MAX_REPAIRS",
+    default=2,
+    min_value=0,
+    max_value=20,
+)
 SESSION_HEADER = os.environ.get("CLAUSY_SESSION_HEADER", "X-Clausy-Session")
 TOOL_PASSWORD = os.environ.get("CLAUSY_TOOL_PASSWORD", "")
 TOOL_PASSWORD_HEADER = os.environ.get("CLAUSY_TOOL_PASSWORD_HEADER", "X-Clausy-Tool-Password")
@@ -138,10 +163,34 @@ TOOL_PASSWORD_MESSAGE = os.environ.get(
 )
 
 # Conversation reset
-RESET_TURNS = int(os.environ.get("CLAUSY_RESET_TURNS", "20"))
-RESET_SUMMARY_MAX_CHARS = int(os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS", "1500"))
-BROWSER_RESTART_EVERY_RESETS = int(os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_RESETS", "0"))
-BROWSER_RESTART_EVERY_REQUESTS = int(os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_REQUESTS", "0"))
+RESET_TURNS = _env_int_bounded(
+    os.environ.get("CLAUSY_RESET_TURNS"),
+    var_name="CLAUSY_RESET_TURNS",
+    default=20,
+    min_value=1,
+    max_value=1000,
+)
+RESET_SUMMARY_MAX_CHARS = _env_int_bounded(
+    os.environ.get("CLAUSY_RESET_SUMMARY_MAX_CHARS"),
+    var_name="CLAUSY_RESET_SUMMARY_MAX_CHARS",
+    default=1500,
+    min_value=100,
+    max_value=20000,
+)
+BROWSER_RESTART_EVERY_RESETS = _env_int_bounded(
+    os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_RESETS"),
+    var_name="CLAUSY_BROWSER_RESTART_EVERY_RESETS",
+    default=0,
+    min_value=0,
+    max_value=100000,
+)
+BROWSER_RESTART_EVERY_REQUESTS = _env_int_bounded(
+    os.environ.get("CLAUSY_BROWSER_RESTART_EVERY_REQUESTS"),
+    var_name="CLAUSY_BROWSER_RESTART_EVERY_REQUESTS",
+    default=0,
+    min_value=0,
+    max_value=100000,
+)
 
 # Realtime event log (in-memory ring buffer)
 EVENT_LOG_ENABLED = _env_flag(os.environ.get("CLAUSY_EVENT_LOG_ENABLED"), default=True)
