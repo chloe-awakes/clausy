@@ -49,6 +49,9 @@ def _validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
     for tc in tool_calls:
         if not isinstance(tc, dict):
             return (False, "tool_calls entries must be objects")
+        tool_call_id = tc.get("id")
+        if not isinstance(tool_call_id, str) or not tool_call_id.strip():
+            return (False, "tool_calls[].id must be a non-empty string")
         if tc.get("type") != "function":
             return (False, "tool_calls[].type must be 'function'")
         fn = tc.get("function")

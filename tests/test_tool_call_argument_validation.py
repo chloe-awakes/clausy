@@ -5,10 +5,10 @@ import json
 from clausy import json_mode, output_mode
 
 
-def _tool_call(arguments: str) -> list[dict]:
+def _tool_call(arguments: str, tool_call_id: object = "call_1") -> list[dict]:
     return [
         {
-            "id": "call_1",
+            "id": tool_call_id,
             "type": "function",
             "function": {"name": "exec", "arguments": arguments},
         }
@@ -58,3 +58,38 @@ def test_output_mode_accepts_object_arguments_json_string():
 
     assert reason == "ok"
     assert parsed is not None
+
+
+def test_output_mode_rejects_tool_call_id_when_not_non_empty_string():
+    payload = {"tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id="")}
+    text = "```json\n" + json.dumps(payload) + "\n```"
+
+    parsed, reason = output_mode.parse_tools_json(text)
+
+    assert parsed is None
+    assert reason == "tool_calls[].id must be a non-empty string"
+
+
+def test_json_mode_schema_rejects_tool_call_id_when_not_non_empty_string():
+    obj = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "clausy",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id=123),
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    ok, reason = json_mode.validate_chat_completion_schema(obj)
+
+    assert ok is False
+    assert reason == "tool_calls[].id must be a non-empty string"
