@@ -226,6 +226,26 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server.COST_AWARE_ROUTING = old_cost_aware
             server.PROVIDER_COSTS_RAW = old_costs_raw
 
+    def test_provider_candidates_ignore_non_finite_or_negative_costs(self):
+        old_auto = server.AUTO_MODEL_SWITCH
+        old_provider = server.PROVIDER_NAME
+        old_chain = server.FALLBACK_CHAIN_RAW
+        old_cost_aware = server.COST_AWARE_ROUTING
+        old_costs_raw = server.PROVIDER_COSTS_RAW
+        try:
+            server.AUTO_MODEL_SWITCH = False
+            server.PROVIDER_NAME = "chatgpt"
+            server.FALLBACK_CHAIN_RAW = "claude,openrouter,grok"
+            server.COST_AWARE_ROUTING = True
+            server.PROVIDER_COSTS_RAW = "chatgpt:1,claude:NaN,openrouter:inf,grok:-2"
+            self.assertEqual(server._provider_candidates("chatgpt-web"), ["chatgpt", "claude", "openrouter", "grok"])
+        finally:
+            server.AUTO_MODEL_SWITCH = old_auto
+            server.PROVIDER_NAME = old_provider
+            server.FALLBACK_CHAIN_RAW = old_chain
+            server.COST_AWARE_ROUTING = old_cost_aware
+            server.PROVIDER_COSTS_RAW = old_costs_raw
+
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR

@@ -3,6 +3,7 @@ import os
 import json
 import time
 import uuid
+import math
 import threading
 from collections import deque
 from typing import Dict, Any
@@ -228,9 +229,12 @@ def _parse_provider_costs(raw: str | None) -> dict[str, float]:
         if not name:
             continue
         try:
-            costs[name] = float(val.strip())
+            parsed = float(val.strip())
         except Exception:
             continue
+        if not math.isfinite(parsed) or parsed < 0:
+            continue
+        costs[name] = parsed
     return costs
 
 
