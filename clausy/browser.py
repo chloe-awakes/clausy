@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import os
 import re
 import time
@@ -17,6 +18,9 @@ from .browser_runtime import (
 
 
 _PROFILE_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+_CDP_CONNECT_TIMEOUT_DEFAULT_S = 20.0
+_CDP_CONNECT_TIMEOUT_MIN_S = 0.1
+_CDP_CONNECT_TIMEOUT_MAX_S = 300.0
 
 
 def _is_safe_profile_path(value: str | None) -> bool:
@@ -27,6 +31,20 @@ def _is_safe_profile_path(value: str | None) -> bool:
     if _PROFILE_TRAVERSAL_SEGMENT_RE.search(value):
         return False
     return True
+
+
+def _parse_cdp_connect_timeout_seconds(raw: str | None) -> float:
+    if raw is None:
+        return _CDP_CONNECT_TIMEOUT_DEFAULT_S
+    try:
+        parsed = float(raw.strip())
+    except (TypeError, ValueError):
+        return _CDP_CONNECT_TIMEOUT_DEFAULT_S
+    if not math.isfinite(parsed):
+        return _CDP_CONNECT_TIMEOUT_DEFAULT_S
+    if parsed < _CDP_CONNECT_TIMEOUT_MIN_S or parsed > _CDP_CONNECT_TIMEOUT_MAX_S:
+        return _CDP_CONNECT_TIMEOUT_DEFAULT_S
+    return parsed
 
 
 class BrowserPool:
@@ -107,7 +125,8 @@ class BrowserPool:
                     ) from e
                 try:
                     self._bootstrap_browser()
-                    self._browser = self._wait_for_cdp(timeout_s=float(os.environ.get("CLAUSY_CDP_CONNECT_TIMEOUT", "20")))
+                    timeout_s = _parse_cdp_connect_timeout_seconds(os.environ.get("CLAUSY_CDP_CONNECT_TIMEOUT"))
+                    self._browser = self._wait_for_cdp(timeout_s=timeout_s)
                 except Exception as bootstrap_error:
                     raise RuntimeError(
                         "Failed to connect to CDP and automatic browser bootstrap failed. "

@@ -310,7 +310,7 @@ Environment variables:
 - `CLAUSY_BROWSER_BOOTSTRAP` (`auto|always|never`, default `auto`)
 - `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
-- `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`)
+- `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`; valid range `0.1..300`, invalid values fall back to default)
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
 - `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, default `0`)
 - `CLAUSY_HEADLESS` (`0|1`, default `0`)
