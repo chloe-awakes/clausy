@@ -105,6 +105,18 @@ class BrowserPoolProfileSwitchTests(unittest.TestCase):
         self.assertFalse(changed)
         mock_start.assert_not_called()
 
+    @patch("clausy.browser.BrowserPool.start")
+    def test_switch_profile_ignores_unsafe_path(self, mock_start):
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="./profile-a", home_url="https://chatgpt.com")
+        changed = pool.switch_profile("../escape")
+        self.assertFalse(changed)
+        self.assertTrue(pool.profile_dir.endswith("profile-a"))
+        mock_start.assert_not_called()
+
+    def test_constructor_rejects_unsafe_profile_path(self):
+        with self.assertRaises(ValueError):
+            BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="../escape", home_url="https://chatgpt.com")
+
 
 if __name__ == "__main__":
     unittest.main()

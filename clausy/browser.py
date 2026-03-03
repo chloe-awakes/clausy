@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import time
 import threading
 import subprocess
@@ -14,12 +15,27 @@ from .browser_runtime import (
 )
 
 
+_PROFILE_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+
+
+def _is_safe_profile_path(value: str | None) -> bool:
+    if not value:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return False
+    if _PROFILE_TRAVERSAL_SEGMENT_RE.search(value):
+        return False
+    return True
+
+
 class BrowserPool:
     """Manages a single Chrome/Chromium instance (CDP) and per-session pages/tabs."""
 
     def __init__(self, cdp_host: str, cdp_port: int, profile_dir: str, home_url: str):
         self.cdp_host = cdp_host
         self.cdp_port = cdp_port
+        if not _is_safe_profile_path(profile_dir):
+            raise ValueError("Unsafe browser profile path")
         self.profile_dir = os.path.abspath(profile_dir)
         self.home_url = home_url
 
@@ -109,7 +125,7 @@ class BrowserPool:
 
         Returns True when a profile change/restart happened.
         """
-        if not profile_dir:
+        if not _is_safe_profile_path(profile_dir):
             return False
         normalized = os.path.abspath(profile_dir)
         if normalized == self.profile_dir:
