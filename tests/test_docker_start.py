@@ -72,6 +72,28 @@ def test_docker_start_tries_host_launch_then_uses_external_cdp_when_available():
     assert "runtime mode selected: external-host-cdp" in combined
 
 
+def test_docker_start_rejects_unknown_launch_placeholders_and_falls_back():
+    profile_dir = tempfile.mkdtemp(prefix="clausy-profile-")
+    marker = Path(profile_dir) / "should-not-exist"
+    completed = _run_script(
+        {
+            "CLAUSY_DOCKER_START_DRY_RUN": "1",
+            "CLAUSY_CDP_HOST": "127.0.0.1",
+            "CLAUSY_CDP_PORT": "65534",
+            "CLAUSY_PROFILE_DIR": profile_dir,
+            "CLAUSY_BROWSER_BINARY": "/bin/sh",
+            "CLAUSY_HOST_BROWSER_LAUNCH_CMD": f"touch {marker} {{unknown}}",
+        }
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    combined = completed.stdout + completed.stderr
+    assert "Host-browser launch command rejected" in combined
+    assert "Step 3/3: trying local in-container Chromium fallback" in combined
+    assert "runtime mode selected: local-chromium-fallback" in combined
+    assert not marker.exists()
+
+
 def test_docker_start_falls_back_to_local_after_host_launch_and_probe_fail():
     profile_dir = tempfile.mkdtemp(prefix="clausy-profile-")
     completed = _run_script(

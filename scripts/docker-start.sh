@@ -44,6 +44,30 @@ print(binary or "")
 PY
 }
 
+expand_launch_cmd() {
+  python - "$1" "$2" "$3" "$4" <<'PY'
+import re
+import sys
+
+raw, host, port, profile_dir = sys.argv[1:5]
+values = {
+    "host": host,
+    "port": port,
+    "profile_dir": profile_dir,
+}
+
+unknown = sorted(set(re.findall(r"\{([^{}]+)\}", raw)) - set(values.keys()))
+if unknown:
+    print(f"unknown placeholders: {', '.join(unknown)}", file=sys.stderr)
+    sys.exit(1)
+
+for key, value in values.items():
+    raw = raw.replace("{" + key + "}", value)
+
+print(raw)
+PY
+}
+
 try_launch_host_browser() {
   host="$1"
   port="$2"
@@ -52,10 +76,10 @@ try_launch_host_browser() {
   # Explicit override command takes precedence.
   # Use placeholders: {host} {port} {profile_dir}
   if [ -n "${CLAUSY_HOST_BROWSER_LAUNCH_CMD:-}" ]; then
-    cmd=$(printf '%s' "$CLAUSY_HOST_BROWSER_LAUNCH_CMD" \
-      | sed "s|{host}|$host|g" \
-      | sed "s|{port}|$port|g" \
-      | sed "s|{profile_dir}|$profile_dir|g")
+    if ! cmd=$(expand_launch_cmd "$CLAUSY_HOST_BROWSER_LAUNCH_CMD" "$host" "$port" "$profile_dir" 2>/tmp/host-browser-launch.log); then
+      log "Host-browser launch command rejected (see /tmp/host-browser-launch.log)"
+      return 1
+    fi
     log "Attempting host-browser launch via CLAUSY_HOST_BROWSER_LAUNCH_CMD"
     if sh -c "$cmd" >/tmp/host-browser-launch.log 2>&1; then
       log "Host-browser launch command returned success"
