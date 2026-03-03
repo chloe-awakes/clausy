@@ -66,6 +66,42 @@ def test_alert_config_rejects_non_finite_or_oversized_smtp_port(monkeypatch):
     assert cfg.port == 587
 
 
+def test_alert_config_accepts_keyword_max_per_window_at_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW", "1000")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.max_alerts_per_window == 1000
+
+
+def test_alert_config_rejects_keyword_max_per_window_above_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW", "1001")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.max_alerts_per_window == 1
+
+
+def test_alert_config_rejects_non_finite_or_oversized_keyword_max_per_window(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW", "9" * 5000)
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.max_alerts_per_window == 1
+
+
+def test_alert_config_accepts_window_seconds_at_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS", "86400")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.window_seconds == 86400
+
+
+def test_alert_config_rejects_window_seconds_above_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS", "86401")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.window_seconds == 300
+
+
+def test_alert_config_rejects_non_finite_or_oversized_window_seconds(monkeypatch):
+    monkeypatch.setenv("CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS", "9" * 5000)
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.window_seconds == 300
+
+
 def test_detector_matches_case_insensitive_by_default():
     d = KeywordDetector(("Secret", "token"), case_sensitive=False)
     assert d.match("found secret and TOKEN") == ["Secret", "token"]

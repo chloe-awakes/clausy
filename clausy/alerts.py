@@ -18,6 +18,14 @@ _SMTP_PORT_DEFAULT = 587
 _SMTP_PORT_MIN = 1
 _SMTP_PORT_MAX = 65535
 
+_KEYWORD_ALERTS_MAX_PER_WINDOW_DEFAULT = 1
+_KEYWORD_ALERTS_MAX_PER_WINDOW_MIN = 1
+_KEYWORD_ALERTS_MAX_PER_WINDOW_MAX = 1000
+
+_KEYWORD_ALERTS_WINDOW_SECONDS_DEFAULT = 300
+_KEYWORD_ALERTS_WINDOW_SECONDS_MIN = 1
+_KEYWORD_ALERTS_WINDOW_SECONDS_MAX = 86400
+
 
 @dataclass(frozen=True)
 class KeywordAlertConfig:
@@ -71,6 +79,17 @@ def _env_smtp_port() -> int:
     return parsed
 
 
+def _env_bounded_int(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        parsed = int((raw or "").strip())
+    except (TypeError, ValueError):
+        return default
+    if parsed < minimum or parsed > maximum:
+        return default
+    return parsed
+
+
 def load_keyword_alert_config_from_env() -> KeywordAlertConfig:
     enabled = _env_bool("CLAUSY_KEYWORD_ALERTS_ENABLED", False)
     keywords = _split_csv(os.environ.get("CLAUSY_KEYWORD_ALERTS_KEYWORDS", ""))
@@ -81,8 +100,18 @@ def load_keyword_alert_config_from_env() -> KeywordAlertConfig:
         enabled=enabled,
         keywords=keywords,
         case_sensitive=_env_bool("CLAUSY_KEYWORD_ALERTS_CASE_SENSITIVE", False),
-        max_alerts_per_window=max(1, int(os.environ.get("CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW", "1"))),
-        window_seconds=max(1, int(os.environ.get("CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS", "300"))),
+        max_alerts_per_window=_env_bounded_int(
+            "CLAUSY_KEYWORD_ALERTS_MAX_PER_WINDOW",
+            default=_KEYWORD_ALERTS_MAX_PER_WINDOW_DEFAULT,
+            minimum=_KEYWORD_ALERTS_MAX_PER_WINDOW_MIN,
+            maximum=_KEYWORD_ALERTS_MAX_PER_WINDOW_MAX,
+        ),
+        window_seconds=_env_bounded_int(
+            "CLAUSY_KEYWORD_ALERTS_WINDOW_SECONDS",
+            default=_KEYWORD_ALERTS_WINDOW_SECONDS_DEFAULT,
+            minimum=_KEYWORD_ALERTS_WINDOW_SECONDS_MIN,
+            maximum=_KEYWORD_ALERTS_WINDOW_SECONDS_MAX,
+        ),
         bot_token=(os.environ.get("CLAUSY_ALERT_TELEGRAM_BOT_TOKEN") or "").strip(),
         chat_id=(os.environ.get("CLAUSY_ALERT_TELEGRAM_CHAT_ID") or "").strip(),
         api_base=(os.environ.get("CLAUSY_ALERT_TELEGRAM_API_BASE") or "https://api.telegram.org").strip(),
