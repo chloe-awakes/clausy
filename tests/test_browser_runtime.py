@@ -181,6 +181,49 @@ class BrowserPoolCdpTimeoutParsingTests(unittest.TestCase):
     @patch("clausy.browser.BrowserPool._bootstrap_browser")
     @patch("clausy.browser.BrowserPool._connect_over_cdp")
     @patch("clausy.browser.sync_playwright")
+    def test_start_accepts_timeout_range_boundaries(
+        self,
+        mock_sync_playwright,
+        mock_connect,
+        mock_bootstrap,
+        mock_wait_for_cdp,
+    ):
+        pw = Mock()
+        browser = Mock()
+        browser.contexts = []
+        browser.new_context.return_value = Mock()
+        pw.chromium = Mock()
+        mock_sync_playwright.return_value.start.return_value = pw
+
+        valid_values = ["0.1", "300"]
+
+        for valid in valid_values:
+            mock_connect.reset_mock()
+            mock_wait_for_cdp.reset_mock()
+            mock_connect.side_effect = RuntimeError("first")
+            mock_wait_for_cdp.return_value = browser
+
+            with self.subTest(timeout=valid):
+                with patch.dict(
+                    os.environ,
+                    {"CLAUSY_BROWSER_BOOTSTRAP": "always", "CLAUSY_CDP_CONNECT_TIMEOUT": valid},
+                    clear=False,
+                ):
+                    pool = BrowserPool(
+                        cdp_host="127.0.0.1",
+                        cdp_port=9200,
+                        profile_dir="./profile",
+                        home_url="https://chatgpt.com",
+                    )
+                    pool.start()
+
+                mock_bootstrap.assert_called()
+                mock_wait_for_cdp.assert_called_once_with(timeout_s=float(valid))
+
+    @patch("clausy.browser.BrowserPool._wait_for_cdp")
+    @patch("clausy.browser.BrowserPool._bootstrap_browser")
+    @patch("clausy.browser.BrowserPool._connect_over_cdp")
+    @patch("clausy.browser.sync_playwright")
     def test_start_rejects_invalid_timeout_values_and_falls_back_to_default(
         self,
         mock_sync_playwright,
@@ -195,7 +238,7 @@ class BrowserPoolCdpTimeoutParsingTests(unittest.TestCase):
         pw.chromium = Mock()
         mock_sync_playwright.return_value.start.return_value = pw
 
-        invalid_values = ["abc", "-1", "0", "999999"]
+        invalid_values = ["abc", "-1", "0", "999999", "0.099", "300.001"]
 
         for invalid in invalid_values:
             mock_connect.reset_mock()
