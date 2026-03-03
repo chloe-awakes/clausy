@@ -3,7 +3,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 from clausy.browser import BrowserPool
-from clausy.browser_runtime import BrowserRuntimeConfig, build_browser_launch_command, detect_browser_binary
+from clausy.browser_runtime import (
+    BrowserRuntimeConfig,
+    build_browser_launch_command,
+    detect_browser_binary,
+    parse_browser_extra_args,
+)
 
 
 class BrowserRuntimeDetectionTests(unittest.TestCase):
@@ -67,6 +72,20 @@ class BrowserRuntimeDetectionTests(unittest.TestCase):
         self.assertIn("--remote-debugging-port=9222", cmd)
         self.assertIn("--user-data-dir=/tmp/profile", cmd)
         self.assertIn("--disable-gpu", cmd)
+
+
+class BrowserRuntimeExtraArgsTests(unittest.TestCase):
+    def test_parse_browser_extra_args_splits_valid_flags(self):
+        got = parse_browser_extra_args("--window-size=1280,720 --lang=en-US")
+        self.assertEqual(got, ["--window-size=1280,720", "--lang=en-US"])
+
+    def test_parse_browser_extra_args_rejects_shellish_payload_and_falls_back_empty(self):
+        got = parse_browser_extra_args("--lang=en-US ; rm -rf /")
+        self.assertEqual(got, [])
+
+    def test_parse_browser_extra_args_rejects_disallowed_flag_and_falls_back_empty(self):
+        got = parse_browser_extra_args("--user-data-dir=/tmp/evil --lang=en-US")
+        self.assertEqual(got, [])
 
 
 class BrowserPoolBootstrapTests(unittest.TestCase):

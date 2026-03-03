@@ -12,6 +12,7 @@ from .browser_runtime import (
     build_browser_launch_command,
     detect_browser_binary,
     parse_bootstrap_mode,
+    parse_browser_extra_args,
 )
 
 
@@ -71,8 +72,8 @@ class BrowserPool:
             )
 
         headless = (os.environ.get("CLAUSY_HEADLESS", "0").strip().lower() in {"1", "true", "yes", "on"})
-        extra_args_raw = (os.environ.get("CLAUSY_BROWSER_ARGS") or "").strip()
-        extra_args = [a for a in extra_args_raw.split(" ") if a] if extra_args_raw else []
+        extra_args_raw = os.environ.get("CLAUSY_BROWSER_ARGS")
+        extra_args = parse_browser_extra_args(extra_args_raw)
         cmd = build_browser_launch_command(
             browser_binary,
             BrowserRuntimeConfig(

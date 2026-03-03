@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -10,6 +11,13 @@ from typing import Callable
 
 _BOOTSTRAP_MODES = {"auto", "always", "never"}
 _PATH_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+_SHELL_META_RE = re.compile(r"[;&|`$<>]")
+_DISALLOWED_BROWSER_ARG_PREFIXES = (
+    "--remote-debugging-address",
+    "--remote-debugging-port",
+    "--user-data-dir",
+    "--headless",
+)
 
 
 @dataclass(frozen=True)
@@ -24,6 +32,32 @@ class BrowserRuntimeConfig:
 def parse_bootstrap_mode(raw: str | None) -> str:
     mode = (raw or "auto").strip().lower()
     return mode if mode in _BOOTSTRAP_MODES else "auto"
+
+
+def parse_browser_extra_args(raw: str | None) -> list[str]:
+    """Parse CLAUSY_BROWSER_ARGS safely.
+
+    Rejects the entire payload and returns [] when tokens are malformed,
+    shell-like, or attempt to override managed runtime flags.
+    """
+    value = (raw or "").strip()
+    if not value:
+        return []
+
+    try:
+        tokens = shlex.split(value)
+    except ValueError:
+        return []
+
+    for token in tokens:
+        if not token or any(ord(ch) < 32 or ord(ch) == 127 for ch in token):
+            return []
+        if _SHELL_META_RE.search(token):
+            return []
+        if token.startswith("-") and token.startswith(_DISALLOWED_BROWSER_ARG_PREFIXES):
+            return []
+
+    return tokens
 
 
 def _is_safe_path(value: str | None) -> bool:
