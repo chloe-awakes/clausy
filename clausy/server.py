@@ -206,6 +206,17 @@ def _resolve_provider_name(model: str | None) -> str:
 
 
 _FALLBACK_TOKEN_RE = re.compile(r"^[a-z0-9_-]+$")
+_PROFILE_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+
+
+def _is_safe_profile_path(value: str) -> bool:
+    if not value:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return False
+    if _PROFILE_TRAVERSAL_SEGMENT_RE.search(value):
+        return False
+    return True
 
 
 def _parse_fallback_chain(raw: str | None) -> list[str]:
@@ -253,7 +264,7 @@ def _parse_provider_profile_map(raw: str | None) -> dict[str, str]:
         name, profile = token.split(":", 1)
         name = name.strip().lower()
         profile = profile.strip()
-        if not name or not _FALLBACK_TOKEN_RE.fullmatch(name) or not profile:
+        if not name or not _FALLBACK_TOKEN_RE.fullmatch(name) or not _is_safe_profile_path(profile):
             continue
         profiles[name] = profile
     return profiles

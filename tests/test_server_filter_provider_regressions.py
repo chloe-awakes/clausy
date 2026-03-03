@@ -298,6 +298,12 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
         )
         self.assertEqual(profile_map, {"chatgpt": "./profile-chatgpt", "claude": "./profile-claude"})
 
+    def test_parse_provider_profile_map_drops_empty_control_and_traversal_like_profiles(self):
+        profile_map = server._parse_provider_profile_map(
+            "chatgpt:./ok,claude:,grok:\t,poe:../escape,deepseek:..\\escape,gemini:./safe/../../escape,openrouter:./good"
+        )
+        self.assertEqual(profile_map, {"chatgpt": "./ok", "openrouter": "./good"})
+
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR
