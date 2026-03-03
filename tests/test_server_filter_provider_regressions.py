@@ -347,6 +347,13 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server._profile_rotation_counter.update(old_counter)
 
     @patch("clausy.server.browser.switch_profile")
+    @patch("clausy.server._profile_dir_for_provider", return_value="../escape")
+    def test_ensure_browser_profile_does_not_switch_for_unsafe_mapped_profile(self, _mock_profile_dir, mock_switch_profile):
+        server._ensure_browser_profile("claude", "switch-profile-unsafe")
+
+        mock_switch_profile.assert_not_called()
+
+    @patch("clausy.server.browser.switch_profile")
     @patch("clausy.server.registry.get")
     @patch("clausy.server.browser.get_page")
     def test_non_stream_switches_browser_profile_for_selected_provider(self, mock_get_page, mock_registry_get, mock_switch_profile):

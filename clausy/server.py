@@ -289,6 +289,8 @@ def _ensure_browser_profile(provider_name: str | None, session_id: str) -> None:
     if not callable(switch_fn):
         return
     target_profile = _profile_dir_for_provider(provider_name)
+    if not _is_safe_profile_path(target_profile):
+        return
     switched = switch_fn(target_profile)
     if switched:
         _log_event(
