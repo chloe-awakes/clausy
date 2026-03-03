@@ -274,6 +274,16 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server.PROVIDER_NAME = old_provider
             server.FALLBACK_CHAIN_RAW = old_chain
 
+    def test_parse_provider_costs_drop_invalid_provider_tokens(self):
+        costs = server._parse_provider_costs("chatgpt:1,gpt/4o:0.2,grok:web:0.1,claude:2")
+        self.assertEqual(costs, {"chatgpt": 1.0, "claude": 2.0})
+
+    def test_parse_provider_profile_map_drop_invalid_provider_tokens(self):
+        profile_map = server._parse_provider_profile_map(
+            "chatgpt:./profile-chatgpt,gpt/4o:./profile-openai,grok/web:./profile-grok,claude:./profile-claude"
+        )
+        self.assertEqual(profile_map, {"chatgpt": "./profile-chatgpt", "claude": "./profile-claude"})
+
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR

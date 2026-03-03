@@ -230,7 +230,7 @@ def _parse_provider_costs(raw: str | None) -> dict[str, float]:
             continue
         name, val = token.split(":", 1)
         name = name.strip().lower()
-        if not name:
+        if not name or not _FALLBACK_TOKEN_RE.fullmatch(name):
             continue
         try:
             parsed = float(val.strip())
@@ -253,7 +253,7 @@ def _parse_provider_profile_map(raw: str | None) -> dict[str, str]:
         name, profile = token.split(":", 1)
         name = name.strip().lower()
         profile = profile.strip()
-        if not name or not profile:
+        if not name or not _FALLBACK_TOKEN_RE.fullmatch(name) or not profile:
             continue
         profiles[name] = profile
     return profiles
