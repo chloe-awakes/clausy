@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     openbox \
     x11-utils \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./

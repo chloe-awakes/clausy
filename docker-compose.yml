@@ -10,10 +10,15 @@ services:
       CLAUSY_BIND: "0.0.0.0"
       CLAUSY_PORT: "5000"
       CLAUSY_PROVIDER: "chatgpt"
-      CLAUSY_CDP_HOST: "127.0.0.1"
+      # Preferred default: use host Chrome's CDP endpoint (attach with --remote-debugging-port=9200)
+      CLAUSY_CDP_HOST: "host.docker.internal"
       CLAUSY_CDP_PORT: "9200"
+      # Startup script probes endpoint and falls back to in-container Chromium when needed.
       CLAUSY_BROWSER_BOOTSTRAP: "auto"
+      CLAUSY_PROFILE_DIR: "/app/profile"
       DISPLAY: ":99"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./profile:/app/profile
     restart: unless-stopped

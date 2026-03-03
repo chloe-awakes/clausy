@@ -198,21 +198,52 @@ curl -s http://127.0.0.1:3108/ready | jq
 
 ### Docker
 
-Build and run with Docker (self-contained browser runtime):
+Container startup now uses strict runtime precedence:
+
+1. **Attempt host-browser launch path first** (outside container) and probe configured CDP endpoint.
+2. If host launch/probe fails, **fallback to local in-container Chromium** and continue.
+
+Container startup still uses `Xvfb + openbox` to provide a Docker-compatible headful display for local Chromium CDP mode.
+
+#### Mode A: External host Chrome (preferred)
+
+Run host Chrome with remote debugging (example on macOS host):
+
+```bash
+open -na "Google Chrome" --args \
+  --remote-debugging-address=0.0.0.0 \
+  --remote-debugging-port=9200 \
+  --user-data-dir="$HOME/.clausy-host-profile" \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-session-crashed-bubble
+```
+
+Then run Clausy container pointing to host CDP:
 
 ```bash
 docker build -t clausy .
 docker run --rm -p 5000:5000 \
+  --add-host=host.docker.internal:host-gateway \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
-  -e CLAUSY_CDP_HOST=127.0.0.1 \
+  -e CLAUSY_CDP_HOST=host.docker.internal \
   -e CLAUSY_CDP_PORT=9200 \
   -e CLAUSY_BROWSER_BOOTSTRAP=auto \
+  -e CLAUSY_HOST_BROWSER_LAUNCH_CMD='true' \
   -v "$(pwd)/profile:/app/profile" \
   clausy
 ```
 
-Container startup uses `Xvfb + openbox` to provide a Docker-compatible headful display for Chromium CDP.
+Notes:
+- `CLAUSY_HOST_BROWSER_LAUNCH_CMD` is an optional best-effort command executed by container startup before probing CDP.
+- If omitted/unavailable, startup still probes `CLAUSY_CDP_HOST:CLAUSY_CDP_PORT` then falls back automatically.
+
+#### Mode B: Self-contained container Chromium (fallback/standalone)
+
+If external host Chrome is unavailable, startup script launches local Chromium in-container with CDP flags (`--remote-debugging-address/port`, `--user-data-dir`) and proceeds.
+
+You can force this path by setting an unreachable host endpoint (or by leaving host launch command unavailable) and keeping `CLAUSY_BROWSER_BOOTSTRAP=auto`.
 
 ### Docker Compose
 
@@ -220,7 +251,7 @@ Container startup uses `Xvfb + openbox` to provide a Docker-compatible headful d
 docker compose up --build
 ```
 
-Compose starts service `clausy` on `http://127.0.0.1:5000` with in-container headful Chromium runtime (`Xvfb + openbox`).
+Compose defaults target host Chrome first (`host.docker.internal:9200`) and retain in-container fallback capability automatically.
 
 Operational details: `docs/runbook-browser-runtime.md`.
 
@@ -279,6 +310,7 @@ Environment variables:
 - `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
 - `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`)
+- `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
 - `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, default `0`)
 - `CLAUSY_HEADLESS` (`0|1`, default `0`)
 - `CLAUSY_SESSION_HEADER` (default `X-Clausy-Session`)
