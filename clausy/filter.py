@@ -10,6 +10,9 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 _DEFAULT_SCAN_PATH = os.path.expanduser("~/.openclaw")
 _PATH_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_FALSE_VALUES = {"0", "false", "no", "off"}
+_LIST_SPLIT_RE = re.compile(r"[,;\n\r]+")
 logger = logging.getLogger(__name__)
 
 # Hard patterns (independent of "known secrets")
@@ -279,6 +282,32 @@ class ProfanityFilterConfig:
     block_message: str = "Content blocked by safety filter."
 
 
+def _env_bool(raw: str | None, *, var_name: str, default: bool) -> bool:
+    if raw is None:
+        return default
+    val = str(raw).strip().lower()
+    if not val:
+        return default
+    if val in _TRUE_VALUES:
+        return True
+    if val in _FALSE_VALUES:
+        return False
+    logger.warning("%s=%r is invalid; using %s", var_name, raw, str(default).lower())
+    return default
+
+
+def _env_list(raw: str | None, *, lowercase: bool = False) -> Tuple[str, ...]:
+    if raw is None:
+        return ()
+    out: List[str] = []
+    for part in _LIST_SPLIT_RE.split(str(raw)):
+        item = part.strip()
+        if not item:
+            continue
+        out.append(item.lower() if lowercase else item)
+    return tuple(out)
+
+
 def _env_int_bounded(
     raw: str | None,
     *,
@@ -310,7 +339,11 @@ def _env_int_bounded(
 
 def load_filter_config_from_env() -> FilterConfig:
     mode = os.environ.get("CLAUSY_FILTER_MODE", "smart").strip().lower()
-    scan_openclaw = os.environ.get("CLAUSY_FILTER_SCAN_OPENCLAW", "1").strip() not in ("0", "false", "no")
+    scan_openclaw = _env_bool(
+        os.environ.get("CLAUSY_FILTER_SCAN_OPENCLAW"),
+        var_name="CLAUSY_FILTER_SCAN_OPENCLAW",
+        default=True,
+    )
     scan_paths_env = os.environ.get("CLAUSY_FILTER_SCAN_PATHS", "").strip()
     if scan_paths_env:
         scan_paths = _sanitize_scan_paths(scan_paths_env.split(","))
@@ -332,7 +365,11 @@ def load_filter_config_from_env() -> FilterConfig:
         min_value=1,
         max_value=2_000_000,
     )
-    enable_prefix = os.environ.get("CLAUSY_FILTER_PREFIX_PATTERNS", "0").strip() in ("1", "true", "yes")
+    enable_prefix = _env_bool(
+        os.environ.get("CLAUSY_FILTER_PREFIX_PATTERNS"),
+        var_name="CLAUSY_FILTER_PREFIX_PATTERNS",
+        default=False,
+    )
     return FilterConfig(
         mode=mode,
         scan_openclaw=scan_openclaw,
@@ -345,8 +382,7 @@ def load_filter_config_from_env() -> FilterConfig:
 
 def load_profanity_filter_config_from_env() -> ProfanityFilterConfig:
     mode = os.environ.get("CLAUSY_BADWORD_FILTER_MODE", "off").strip().lower()
-    words_env = os.environ.get("CLAUSY_BADWORD_WORDS", "")
-    words = tuple(w.strip().lower() for w in words_env.split(",") if w.strip())
+    words = _env_list(os.environ.get("CLAUSY_BADWORD_WORDS"), lowercase=True)
     replacement = os.environ.get("CLAUSY_BADWORD_REPLACEMENT", "[CENSORED]").strip() or "[CENSORED]"
     block_message = os.environ.get("CLAUSY_BADWORD_BLOCK_MESSAGE", "Content blocked by safety filter.").strip() or "Content blocked by safety filter."
     return ProfanityFilterConfig(mode=mode, words=words, replacement=replacement, block_message=block_message)
