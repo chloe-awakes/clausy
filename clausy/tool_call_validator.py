@@ -39,6 +39,8 @@ def validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
             return (False, "tool_calls[].function.name missing/invalid")
         if _contains_control_characters(name):
             return (False, "tool_calls[].function.name must not contain control characters")
+        if len(name) > 128:
+            return (False, "tool_calls[].function.name must be <= 128 chars")
         args = fn.get("arguments")
         if not isinstance(args, str):
             return (False, "tool_calls[].function.arguments must be a JSON-encoded string")

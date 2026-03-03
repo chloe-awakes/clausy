@@ -58,6 +58,13 @@ def test_shared_validator_rejects_control_character_in_function_name_with_expect
     assert reason == "tool_calls[].function.name must not contain control characters"
 
 
+def test_shared_validator_rejects_function_name_longer_than_128_chars_with_expected_reason():
+    ok, reason = validate_tool_calls(_payload_with_tool_call({"function.name": "x" * 129}))
+
+    assert ok is False
+    assert reason == "tool_calls[].function.name must be <= 128 chars"
+
+
 def test_shared_validator_rejects_control_character_in_id_with_expected_reason():
     ok, reason = validate_tool_calls(_payload_with_tool_call({"id": "call_\n1"}))
 
@@ -79,6 +86,7 @@ def test_output_and_json_mode_use_same_reason_for_type_name_arguments_constraint
         ({"function.name": "   "}, "tool_calls[].function.name missing/invalid"),
         ({"function.arguments": "not-json"}, "tool_calls[].function.arguments must encode a JSON object"),
         ({"function.name": "ex\nec"}, "tool_calls[].function.name must not contain control characters"),
+        ({"function.name": "x" * 129}, "tool_calls[].function.name must be <= 128 chars"),
         ({"id": "call_\n1"}, "tool_calls[].id must not contain control characters"),
         ({"id": "c" * 129}, "tool_calls[].id must be <= 128 chars"),
     ]
@@ -123,6 +131,45 @@ def test_output_and_json_mode_accept_128_char_and_non_ascii_tool_call_ids():
 
     for tool_call_id in cases:
         tool_calls = _payload_with_tool_call({"id": tool_call_id})
+
+        # output_mode path
+        output_text = "```json\n" + json.dumps({"tool_calls": tool_calls}) + "\n```"
+        parsed_tool_calls, output_reason = output_mode.parse_tools_json(output_text)
+
+        # json_mode path
+        obj = {
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "clausy",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": tool_calls,
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+        }
+        ok, json_reason = json_mode.validate_chat_completion_schema(obj)
+
+        assert parsed_tool_calls == tool_calls
+        assert output_reason == "ok"
+        assert ok is True
+        assert json_reason == "ok"
+
+
+def test_output_and_json_mode_accept_128_char_and_non_ascii_function_names():
+    cases = [
+        "x" * 128,
+        "exec_ß工具_🚀",
+    ]
+
+    for function_name in cases:
+        tool_calls = _payload_with_tool_call({"function.name": function_name})
 
         # output_mode path
         output_text = "```json\n" + json.dumps({"tool_calls": tool_calls}) + "\n```"
