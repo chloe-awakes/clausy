@@ -51,6 +51,13 @@ def test_shared_validator_rejects_non_json_arguments_with_expected_reason():
     assert reason == "tool_calls[].function.arguments must encode a JSON object"
 
 
+def test_shared_validator_rejects_control_character_in_function_name_with_expected_reason():
+    ok, reason = validate_tool_calls(_payload_with_tool_call({"function.name": "ex\nec"}))
+
+    assert ok is False
+    assert reason == "tool_calls[].function.name must not contain control characters"
+
+
 def test_shared_validator_rejects_control_character_in_id_with_expected_reason():
     ok, reason = validate_tool_calls(_payload_with_tool_call({"id": "call_\n1"}))
 
@@ -71,6 +78,7 @@ def test_output_and_json_mode_use_same_reason_for_type_name_arguments_constraint
         ({"function.name": ""}, "tool_calls[].function.name missing/invalid"),
         ({"function.name": "   "}, "tool_calls[].function.name missing/invalid"),
         ({"function.arguments": "not-json"}, "tool_calls[].function.arguments must encode a JSON object"),
+        ({"function.name": "ex\nec"}, "tool_calls[].function.name must not contain control characters"),
         ({"id": "call_\n1"}, "tool_calls[].id must not contain control characters"),
         ({"id": "c" * 129}, "tool_calls[].id must be <= 128 chars"),
     ]
