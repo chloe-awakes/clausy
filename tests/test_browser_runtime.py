@@ -144,6 +144,43 @@ class BrowserPoolCdpTimeoutParsingTests(unittest.TestCase):
     @patch("clausy.browser.BrowserPool._bootstrap_browser")
     @patch("clausy.browser.BrowserPool._connect_over_cdp")
     @patch("clausy.browser.sync_playwright")
+    def test_start_uses_valid_in_range_timeout_value(
+        self,
+        mock_sync_playwright,
+        mock_connect,
+        mock_bootstrap,
+        mock_wait_for_cdp,
+    ):
+        pw = Mock()
+        browser = Mock()
+        browser.contexts = []
+        browser.new_context.return_value = Mock()
+        pw.chromium = Mock()
+        mock_sync_playwright.return_value.start.return_value = pw
+
+        mock_connect.side_effect = RuntimeError("first")
+        mock_wait_for_cdp.return_value = browser
+
+        with patch.dict(
+            os.environ,
+            {"CLAUSY_BROWSER_BOOTSTRAP": "always", "CLAUSY_CDP_CONNECT_TIMEOUT": "25"},
+            clear=False,
+        ):
+            pool = BrowserPool(
+                cdp_host="127.0.0.1",
+                cdp_port=9200,
+                profile_dir="./profile",
+                home_url="https://chatgpt.com",
+            )
+            pool.start()
+
+        mock_bootstrap.assert_called_once()
+        mock_wait_for_cdp.assert_called_once_with(timeout_s=25.0)
+
+    @patch("clausy.browser.BrowserPool._wait_for_cdp")
+    @patch("clausy.browser.BrowserPool._bootstrap_browser")
+    @patch("clausy.browser.BrowserPool._connect_over_cdp")
+    @patch("clausy.browser.sync_playwright")
     def test_start_rejects_invalid_timeout_values_and_falls_back_to_default(
         self,
         mock_sync_playwright,
