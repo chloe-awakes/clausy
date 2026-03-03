@@ -295,11 +295,12 @@ def _provider_candidates(model: str | None) -> list[str]:
         ordered = [primary]
     if COST_AWARE_ROUTING and len(ordered) > 1:
         costs = _parse_provider_costs(PROVIDER_COSTS_RAW)
-        order_index = {name: idx for idx, name in enumerate(ordered)}
-        ordered = sorted(
-            ordered,
-            key=lambda name: (costs.get(name, float("inf")), order_index[name]),
-        )
+        if costs:
+            order_index = {name: idx for idx, name in enumerate(ordered)}
+            priced = [name for name in ordered if name in costs]
+            unpriced = [name for name in ordered if name not in costs]
+            priced = sorted(priced, key=lambda name: (costs[name], order_index[name]))
+            ordered = [*priced, *unpriced]
     return ordered
 
 
