@@ -6,6 +6,7 @@ import uuid
 import math
 import re
 import threading
+import logging
 from collections import deque
 from typing import Dict, Any
 from importlib.metadata import PackageNotFoundError, version as pkg_version
@@ -43,6 +44,8 @@ except PackageNotFoundError:
 STARTED_AT = time.time()
 
 # Config
+logger = logging.getLogger(__name__)
+
 
 def _env_flag(raw: str | None, *, default: bool = False) -> bool:
     if raw is None:
@@ -55,6 +58,26 @@ def _env_flag(raw: str | None, *, default: bool = False) -> bool:
     if v in ("0", "false", "no", "off"):
         return False
     return default
+
+
+def _env_port(raw: str | None, *, var_name: str, default: int) -> int:
+    if raw is None or not str(raw).strip():
+        return default
+    val = str(raw).strip()
+    try:
+        port = int(val)
+    except Exception:
+        logger.warning("%s=%r is invalid; using %d", var_name, val, default)
+        return default
+    if not (1 <= port <= 65535):
+        logger.warning(
+            "%s=%d is out of range (valid range is 1-65535); using %d",
+            var_name,
+            port,
+            default,
+        )
+        return default
+    return port
 
 PROVIDER_NAME = os.environ.get("CLAUSY_PROVIDER", "chatgpt").strip()
 AUTO_MODEL_SWITCH = _env_flag(os.environ.get("CLAUSY_AUTO_MODEL_SWITCH"), default=True)
@@ -97,7 +120,7 @@ def _profile_dir_from_env() -> str:
 
 
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
-CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
+CDP_PORT = _env_port(os.environ.get("CLAUSY_CDP_PORT"), var_name="CLAUSY_CDP_PORT", default=9200)
 PROFILE_DIR = _profile_dir_from_env()
 PROFILE_BY_PROVIDER_RAW = os.environ.get("CLAUSY_PROFILE_BY_PROVIDER", "").strip()
 PROFILE_ROTATION_ENABLED = _env_flag(os.environ.get("CLAUSY_PROFILE_ROTATION_ENABLED"), default=False)
