@@ -11,7 +11,7 @@ from typing import Dict, Any
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 from flask import Flask, request, jsonify, Response, stream_with_context
 
-from .browser import BrowserPool
+from .browser import BrowserPool, _is_safe_profile_path
 from .providers import ProviderRegistry
 from .api_providers import APIProviderRouter, APIProviderError, is_api_provider
 from .output_mode import output_mode_header, parse_or_repair_output, detect_mode, strip_marker
@@ -89,9 +89,16 @@ POE_URL = os.environ.get("CLAUSY_POE_URL", "https://poe.com").strip()
 DEEPSEEK_URL = os.environ.get("CLAUSY_DEEPSEEK_URL", "https://chat.deepseek.com").strip()
 ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=False)
 
+def _profile_dir_from_env() -> str:
+    raw = os.environ.get("CLAUSY_PROFILE_DIR", "./profile").strip()
+    if _is_safe_profile_path(raw):
+        return raw
+    return "./profile"
+
+
 CDP_HOST = os.environ.get("CLAUSY_CDP_HOST", "127.0.0.1").strip()
 CDP_PORT = int(os.environ.get("CLAUSY_CDP_PORT", "9200"))
-PROFILE_DIR = os.environ.get("CLAUSY_PROFILE_DIR", "./profile").strip()
+PROFILE_DIR = _profile_dir_from_env()
 PROFILE_BY_PROVIDER_RAW = os.environ.get("CLAUSY_PROFILE_BY_PROVIDER", "").strip()
 PROFILE_ROTATION_ENABLED = _env_flag(os.environ.get("CLAUSY_PROFILE_ROTATION_ENABLED"), default=False)
 PROFILE_ROTATION_COUNT = max(0, int(os.environ.get("CLAUSY_PROFILE_ROTATION_COUNT", "0")))

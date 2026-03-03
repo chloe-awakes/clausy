@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch
 
@@ -304,6 +305,10 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
         )
         self.assertEqual(profile_map, {"chatgpt": "./ok", "openrouter": "./good"})
 
+
+    def test_env_profile_dir_falls_back_to_safe_default_when_unsafe(self):
+        with patch.dict(os.environ, {"CLAUSY_PROFILE_DIR": "../escape"}, clear=False):
+            self.assertEqual(server._profile_dir_from_env(), "./profile")
 
     def test_profile_dir_for_provider_uses_mapping_and_default(self):
         old_default = server.PROFILE_DIR
