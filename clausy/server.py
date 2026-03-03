@@ -288,7 +288,7 @@ def _ensure_browser_profile(provider_name: str | None, session_id: str) -> None:
 
 def _provider_candidates(model: str | None) -> list[str]:
     primary = _resolve_provider_name(model).strip().lower()
-    if not primary:
+    if not primary or not _FALLBACK_TOKEN_RE.fullmatch(primary):
         primary = "chatgpt"
     seen: set[str] = set()
     ordered: list[str] = []

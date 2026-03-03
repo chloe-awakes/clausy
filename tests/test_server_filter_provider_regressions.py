@@ -260,6 +260,20 @@ class ModelSwitchingRegressionTests(unittest.TestCase):
             server.PROVIDER_NAME = old_provider
             server.FALLBACK_CHAIN_RAW = old_chain
 
+    def test_provider_candidates_sanitize_invalid_primary_provider_name(self):
+        old_auto = server.AUTO_MODEL_SWITCH
+        old_provider = server.PROVIDER_NAME
+        old_chain = server.FALLBACK_CHAIN_RAW
+        try:
+            server.AUTO_MODEL_SWITCH = False
+            server.PROVIDER_NAME = "chatgpt;rm -rf /"
+            server.FALLBACK_CHAIN_RAW = "claude"
+            self.assertEqual(server._provider_candidates(None), ["chatgpt", "claude"])
+        finally:
+            server.AUTO_MODEL_SWITCH = old_auto
+            server.PROVIDER_NAME = old_provider
+            server.FALLBACK_CHAIN_RAW = old_chain
+
     def test_provider_candidates_drop_invalid_fallback_tokens(self):
         old_auto = server.AUTO_MODEL_SWITCH
         old_provider = server.PROVIDER_NAME
