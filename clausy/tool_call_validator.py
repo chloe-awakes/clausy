@@ -27,7 +27,7 @@ def validate_tool_calls(tool_calls: Any) -> Tuple[bool, str]:
         if not isinstance(fn, dict):
             return (False, "tool_calls[].function missing or not an object")
         name = fn.get("name")
-        if not isinstance(name, str) or not name:
+        if not isinstance(name, str) or not name.strip():
             return (False, "tool_calls[].function.name missing/invalid")
         args = fn.get("arguments")
         if not isinstance(args, str):

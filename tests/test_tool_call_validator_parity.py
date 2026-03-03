@@ -37,6 +37,13 @@ def test_shared_validator_rejects_invalid_name_with_expected_reason():
     assert reason == "tool_calls[].function.name missing/invalid"
 
 
+def test_shared_validator_rejects_whitespace_only_name_with_expected_reason():
+    ok, reason = validate_tool_calls(_payload_with_tool_call({"function.name": "   "}))
+
+    assert ok is False
+    assert reason == "tool_calls[].function.name missing/invalid"
+
+
 def test_shared_validator_rejects_non_json_arguments_with_expected_reason():
     ok, reason = validate_tool_calls(_payload_with_tool_call({"function.arguments": "not-json"}))
 
@@ -48,6 +55,7 @@ def test_output_and_json_mode_use_same_reason_for_type_name_arguments_constraint
     cases = [
         ({"type": "tool"}, "tool_calls[].type must be 'function'"),
         ({"function.name": ""}, "tool_calls[].function.name missing/invalid"),
+        ({"function.name": "   "}, "tool_calls[].function.name missing/invalid"),
         ({"function.arguments": "not-json"}, "tool_calls[].function.arguments must encode a JSON object"),
     ]
 
