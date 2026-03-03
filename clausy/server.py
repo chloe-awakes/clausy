@@ -284,6 +284,8 @@ def _ensure_browser_profile(provider_name: str | None, session_id: str) -> None:
 
 def _provider_candidates(model: str | None) -> list[str]:
     primary = _resolve_provider_name(model).strip().lower()
+    if not primary:
+        primary = "chatgpt"
     seen: set[str] = set()
     ordered: list[str] = []
     for name in [primary, *_parse_fallback_chain(FALLBACK_CHAIN_RAW)]:
@@ -292,7 +294,7 @@ def _provider_candidates(model: str | None) -> list[str]:
         seen.add(name)
         ordered.append(name)
     if not ordered:
-        ordered = [primary]
+        ordered = ["chatgpt"]
     if COST_AWARE_ROUTING and len(ordered) > 1:
         costs = _parse_provider_costs(PROVIDER_COSTS_RAW)
         if costs:
