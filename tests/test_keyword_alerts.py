@@ -48,6 +48,24 @@ def test_alert_config_rejects_empty_keywords(monkeypatch):
         load_keyword_alert_config_from_env()
 
 
+def test_alert_config_accepts_smtp_port_at_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_ALERT_EMAIL_SMTP_PORT", "65535")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.port == 65535
+
+
+def test_alert_config_rejects_smtp_port_above_upper_boundary(monkeypatch):
+    monkeypatch.setenv("CLAUSY_ALERT_EMAIL_SMTP_PORT", "65536")
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.port == 587
+
+
+def test_alert_config_rejects_non_finite_or_oversized_smtp_port(monkeypatch):
+    monkeypatch.setenv("CLAUSY_ALERT_EMAIL_SMTP_PORT", "9" * 5000)
+    cfg = load_keyword_alert_config_from_env()
+    assert cfg.port == 587
+
+
 def test_detector_matches_case_insensitive_by_default():
     d = KeywordDetector(("Secret", "token"), case_sensitive=False)
     assert d.match("found secret and TOKEN") == ["Secret", "token"]

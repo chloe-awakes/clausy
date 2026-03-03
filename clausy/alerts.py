@@ -14,6 +14,11 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+_SMTP_PORT_DEFAULT = 587
+_SMTP_PORT_MIN = 1
+_SMTP_PORT_MAX = 65535
+
+
 @dataclass(frozen=True)
 class KeywordAlertConfig:
     enabled: bool = False
@@ -55,6 +60,17 @@ def _split_csv(raw: str) -> tuple[str, ...]:
     return tuple(v.strip() for v in raw.split(",") if v and v.strip())
 
 
+def _env_smtp_port() -> int:
+    raw = os.environ.get("CLAUSY_ALERT_EMAIL_SMTP_PORT", str(_SMTP_PORT_DEFAULT))
+    try:
+        parsed = int((raw or "").strip())
+    except (TypeError, ValueError):
+        return _SMTP_PORT_DEFAULT
+    if parsed < _SMTP_PORT_MIN or parsed > _SMTP_PORT_MAX:
+        return _SMTP_PORT_DEFAULT
+    return parsed
+
+
 def load_keyword_alert_config_from_env() -> KeywordAlertConfig:
     enabled = _env_bool("CLAUSY_KEYWORD_ALERTS_ENABLED", False)
     keywords = _split_csv(os.environ.get("CLAUSY_KEYWORD_ALERTS_KEYWORDS", ""))
@@ -71,7 +87,7 @@ def load_keyword_alert_config_from_env() -> KeywordAlertConfig:
         chat_id=(os.environ.get("CLAUSY_ALERT_TELEGRAM_CHAT_ID") or "").strip(),
         api_base=(os.environ.get("CLAUSY_ALERT_TELEGRAM_API_BASE") or "https://api.telegram.org").strip(),
         host=(os.environ.get("CLAUSY_ALERT_EMAIL_SMTP_HOST") or "").strip(),
-        port=int(os.environ.get("CLAUSY_ALERT_EMAIL_SMTP_PORT", "587")),
+        port=_env_smtp_port(),
         username=(os.environ.get("CLAUSY_ALERT_EMAIL_USERNAME") or "").strip(),
         password=(os.environ.get("CLAUSY_ALERT_EMAIL_PASSWORD") or "").strip(),
         from_addr=(os.environ.get("CLAUSY_ALERT_EMAIL_FROM") or "").strip(),
