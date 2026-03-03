@@ -163,3 +163,73 @@ def test_json_mode_schema_rejects_tool_call_id_longer_than_128_chars():
 
     assert ok is False
     assert reason == "tool_calls[].id must be <= 128 chars"
+
+
+def test_output_mode_accepts_tool_call_id_exactly_128_chars():
+    payload = {"tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id=("c" * 128))}
+    text = "```json\n" + json.dumps(payload) + "\n```"
+
+    parsed, reason = output_mode.parse_tools_json(text)
+
+    assert reason == "ok"
+    assert parsed is not None
+
+
+def test_json_mode_schema_accepts_tool_call_id_exactly_128_chars():
+    obj = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "clausy",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id=("c" * 128)),
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    ok, reason = json_mode.validate_chat_completion_schema(obj)
+
+    assert ok is True
+    assert reason == "ok"
+
+
+def test_output_mode_accepts_non_ascii_printable_tool_call_id():
+    payload = {"tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id="call_äöü_日本語_Δ")}
+    text = "```json\n" + json.dumps(payload, ensure_ascii=False) + "\n```"
+
+    parsed, reason = output_mode.parse_tools_json(text)
+
+    assert reason == "ok"
+    assert parsed is not None
+
+
+def test_json_mode_schema_accepts_non_ascii_printable_tool_call_id():
+    obj = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "clausy",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": _tool_call('{"command": "ls -la"}', tool_call_id="call_äöü_日本語_Δ"),
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+    }
+
+    ok, reason = json_mode.validate_chat_completion_schema(obj)
+
+    assert ok is True
+    assert reason == "ok"
