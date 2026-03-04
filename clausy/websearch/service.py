@@ -6,6 +6,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 ProviderName = Literal["brave", "google"]
+_VALID_PROVIDERS = {"brave", "google"}
+
+
+def _normalize_provider(value: str | None, *, default: ProviderName = "brave") -> ProviderName:
+    candidate = (value or "").strip().lower()
+    if candidate in _VALID_PROVIDERS:
+        return candidate  # type: ignore[return-value]
+    return default
 
 @dataclass
 class SearchResult:
@@ -34,9 +42,7 @@ class WebSearchService:
     """
 
     def __init__(self) -> None:
-        self.default_provider: ProviderName = os.environ.get("CLAUSY_WEBSEARCH_PROVIDER", "brave").strip().lower()  # type: ignore[assignment]
-        if self.default_provider not in ("brave", "google"):
-            self.default_provider = "brave"
+        self.default_provider = _normalize_provider(os.environ.get("CLAUSY_WEBSEARCH_PROVIDER", "brave"))
 
     def search(
         self,
@@ -49,8 +55,7 @@ class WebSearchService:
         country: Optional[str] = None,
         timeout_s: float = 20.0,
     ) -> Dict[str, Any]:
-        prov: ProviderName = (provider or self.default_provider)  # type: ignore[assignment]
-        prov = prov.lower()  # type: ignore[assignment]
+        prov = _normalize_provider(provider, default=self.default_provider)
         count = max(1, min(int(count), 10))
 
         if prov == "brave":
