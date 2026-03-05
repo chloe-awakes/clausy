@@ -14,11 +14,11 @@
 > The author takes **no responsibility** for account bans, data loss, or any other consequences resulting from the use of this software.
 <br>
 
-**Clausy is an OpenAI-compatible LLM proxy that lets agent frameworks talk to browser-based AI systems like ChatGPT and Claude.**
+**Clausy is an OpenAI-compatible LLM proxy that lets agent frameworks like OpenClaw talk to browser-based AI systems like ChatGPT, xAi, Gemini and Claude.**
 
 It exposes a standard OpenAI API while internally routing requests to browser-based LLM interfaces using Playwright and Chrome DevTools.
 
-This allows tools that expect an OpenAI API (for example OpenClaw) to work with **web-based AI systems without requiring official API access.**
+This allows tools that expect an OpenAI API (for example OpenClaw) to work with **web-based AI systems without API access.**
 
 ---
 
@@ -34,6 +34,12 @@ It translates between:
 - **browser-based AI interfaces** used by modern LLM services
 
 This enables systems that are **independent of any single AI provider**.
+
+---
+
+## Keywords
+
+OpenClaw, OpenClaw proxy, OpenAI-compatible proxy, LLM proxy, ChatGPT, Claude, Grok, Gemini, openAI, Anthropic, xAi, Google, browser gateway, AI agents
 
 ---
 
