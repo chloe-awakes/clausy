@@ -4,6 +4,16 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-experimental-orange)
 
+<br>
+
+> ⚠️ **Disclaimer**
+>
+> Clausy is experimental software. **Use it at your own risk.**
+>  
+> Automating web-based AI services may violate the **terms of service** of those providers.
+> The author takes **no responsibility** for account bans, data loss, or any other consequences resulting from the use of this software.
+<br>
+
 **Clausy is an OpenAI-compatible LLM proxy that lets agent frameworks talk to browser-based AI systems like ChatGPT and Claude.**
 
 It exposes a standard OpenAI API while internally routing requests to browser-based LLM interfaces using Playwright and Chrome DevTools.
