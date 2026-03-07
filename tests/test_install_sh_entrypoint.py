@@ -35,6 +35,13 @@ def test_install_sh_supports_forwarding_dry_run_flag():
     assert 'OPENCLAW_ARGS+=("--dry-run")' in content
 
 
+def test_install_sh_handles_empty_openclaw_args_under_nounset():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then' in content
+    assert '"${VENV_PY}" -m clausy.openclaw_install "${OPENCLAW_ARGS[@]}"' in content
+    assert '"${VENV_PY}" -m clausy.openclaw_install' in content
+
+
 def test_install_sh_is_safe_when_bash_source_is_unset():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'SCRIPT_PATH="${BASH_SOURCE[0]:-${0:-}}"' in content

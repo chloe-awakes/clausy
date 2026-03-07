@@ -56,7 +56,11 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   OPENCLAW_ARGS+=("--dry-run")
 fi
 
-"${VENV_PY}" -m clausy.openclaw_install "${OPENCLAW_ARGS[@]}"
+if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then
+  "${VENV_PY}" -m clausy.openclaw_install "${OPENCLAW_ARGS[@]}"
+else
+  "${VENV_PY}" -m clausy.openclaw_install
+fi
 
 if [[ "${DOCKER_MODE}" -eq 1 ]]; then
   SELECTED_BASE_URL="http://127.0.0.1:5000/v1"
