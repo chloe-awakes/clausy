@@ -209,33 +209,31 @@ playwright install chromium
 
 ## Run
 
-### 1) Start Clausy
-
-Preferred helper for a visible local Chrome session:
+### CLI quickstart
 
 ```bash
-clausy chrome
+clausy status        # runtime snapshot
+clausy config        # show effective config (env > file > defaults)
+clausy start         # start Clausy in background with current config
+clausy stop          # stop running Clausy service/process (safe if not running)
+clausy chrome        # start in visible Chrome mode (bootstrap=always, headless=0)
 ```
 
-Equivalent module invocation:
+With no args, `clausy` prints `status` plus concise usage help (it does **not** start the server).
+
+### Settings UX (direct get/set)
 
 ```bash
-python -m clausy chrome
+clausy headless
+clausy headless off
+clausy bootstrap always
+clausy provider claude
+clausy port 3110
+clausy auto-install on
+clausy novnc off
 ```
 
-This helper enforces:
-
-- `CLAUSY_BROWSER_BOOTSTRAP=always`
-- `CLAUSY_HEADLESS=0`
-
-Default behavior is unchanged when you run Clausy without subcommands:
-
-```bash
-clausy
-# or: python -m clausy
-```
-
-In default mode, Clausy tries to connect to CDP first, then auto-launches a detected Chrome/Chromium binary when CDP is not already available.
+Supported direct settings: `headless`, `bootstrap`, `provider`, `port`, `auto-install`, `novnc`.
 
 ### Optional: manually start Chrome with remote debugging
 
@@ -369,6 +367,17 @@ curl -N http://127.0.0.1:3108/v1/chat/completions   -H 'Content-Type: applicatio
 ---
 
 ## Configuration
+
+CLI-persisted config file:
+
+- `~/.config/clausy/config.json`
+- lifecycle pid file: `~/.config/clausy/clausy.pid` (used by `clausy start/stop`)
+
+Effective runtime precedence:
+
+1. Environment variables (`CLAUSY_*`)
+2. CLI-persisted config file (`~/.config/clausy/config.json`)
+3. Built-in server defaults
 
 Environment variables:
 
