@@ -17,6 +17,7 @@ from .service_install import SERVICE_LABEL, SYSTEMD_UNIT
 _CONFIG_DIR = Path.home() / ".config" / "clausy"
 _CONFIG_PATH = _CONFIG_DIR / "config.json"
 _PID_PATH = _CONFIG_DIR / "clausy.pid"
+_BROWSER_PID_PATH = _CONFIG_DIR / "browser-bootstrap.pid"
 
 
 def _config_file_path() -> Path:
@@ -25,6 +26,10 @@ def _config_file_path() -> Path:
 
 def _pid_file_path() -> Path:
     return _PID_PATH
+
+
+def _browser_pid_file_path() -> Path:
+    return _BROWSER_PID_PATH
 
 
 def _read_config() -> dict[str, str]:
@@ -246,14 +251,70 @@ def _try_stop_service_manager() -> bool:
     return False
 
 
+def _is_expected_managed_browser_process(pid: int, cdp_port: int, profile_dir: str) -> bool:
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return False
+
+    if result.returncode != 0:
+        return False
+
+    cmd = (result.stdout or "").strip()
+    if not cmd:
+        return False
+
+    return (
+        f"--remote-debugging-port={cdp_port}" in cmd
+        and f"--user-data-dir={profile_dir}" in cmd
+    )
+
+
+def _stop_managed_browser_if_any() -> bool:
+    path = _browser_pid_file_path()
+    if not path.exists():
+        return False
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        path.unlink(missing_ok=True)
+        return False
+
+    pid = payload.get("pid")
+    cdp_port = payload.get("cdp_port")
+    profile_dir = payload.get("profile_dir")
+    if not isinstance(pid, int) or not isinstance(cdp_port, int) or not isinstance(profile_dir, str):
+        path.unlink(missing_ok=True)
+        return False
+
+    stopped = False
+    if _is_expected_managed_browser_process(pid, cdp_port, profile_dir):
+        try:
+            os.kill(pid, signal.SIGTERM)
+            print(f"Stopped Clausy-managed browser (pid={pid}).")
+            stopped = True
+        except ProcessLookupError:
+            stopped = False
+
+    path.unlink(missing_ok=True)
+    return stopped
+
+
 def _cmd_stop() -> int:
     stopped_service = _try_stop_service_manager()
 
     pid_path = _pid_file_path()
     if not pid_path.exists():
+        stopped_browser = _stop_managed_browser_if_any()
         if stopped_service:
             print("Stopped Clausy service.")
-        else:
+        elif not stopped_browser:
             print("Clausy is not running.")
         return 0
 
@@ -261,6 +322,7 @@ def _cmd_stop() -> int:
         pid = int(pid_path.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         pid_path.unlink(missing_ok=True)
+        _stop_managed_browser_if_any()
         print("Clausy is not running.")
         return 0
 
@@ -271,6 +333,8 @@ def _cmd_stop() -> int:
         print("Clausy is not running (stale pid file removed).")
     finally:
         pid_path.unlink(missing_ok=True)
+
+    _stop_managed_browser_if_any()
     return 0
 
 

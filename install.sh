@@ -18,6 +18,57 @@ DRY_RUN=0
 NO_SERVICE=0
 NO_BROWSER=0
 
+is_interactive() {
+  [[ -t 0 && -t 1 ]]
+}
+
+is_yes() {
+  local v="${1:-}"
+  v="$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')"
+  [[ -z "$v" || "$v" == "y" || "$v" == "yes" ]]
+}
+
+append_path_to_shell_rc() {
+  local path_entry="$1"
+  local shell_name
+  shell_name="$(basename "${SHELL:-}")"
+
+  local rc_file=""
+  local line=""
+
+  case "$shell_name" in
+    zsh)
+      rc_file="${HOME}/.zshrc"
+      line="export PATH=\"${path_entry}:\$PATH\""
+      ;;
+    bash)
+      rc_file="${HOME}/.bashrc"
+      line="export PATH=\"${path_entry}:\$PATH\""
+      ;;
+    fish)
+      rc_file="${HOME}/.config/fish/config.fish"
+      line="set -gx PATH \"${path_entry}\" \$PATH"
+      ;;
+    *)
+      echo "Unsupported shell '${shell_name}'. Add this to your shell config manually:" >&2
+      echo "  export PATH=\"${path_entry}:\$PATH\"" >&2
+      return 1
+      ;;
+  esac
+
+  mkdir -p "$(dirname "${rc_file}")"
+  touch "${rc_file}"
+
+  if grep -Fqs "${path_entry}" "${rc_file}"; then
+    echo "PATH already contains Clausy venv in ${rc_file}"
+    return 0
+  fi
+
+  printf '\n%s\n' "${line}" >> "${rc_file}"
+  echo "Added Clausy PATH entry to ${rc_file}"
+  return 0
+}
+
 while (($#)); do
   case "$1" in
     --docker)
@@ -49,6 +100,7 @@ if [[ ! -d "${VENV_DIR}" ]]; then
 fi
 
 VENV_PY="${VENV_DIR}/bin/python"
+VENV_BIN_PATH="$(cd "${VENV_DIR}/bin" && pwd)"
 
 "${VENV_PY}" -m pip install -U pip
 
@@ -56,6 +108,15 @@ if [[ -f "${REPO_ROOT}/pyproject.toml" ]]; then
   "${VENV_PY}" -m pip install "${REPO_ROOT}"
 else
   "${VENV_PY}" -m pip install --upgrade --force-reinstall "${GIT_PACKAGE_URL}"
+fi
+
+if is_interactive; then
+  provider_choice="chatgpt"
+  read -r -p "Select provider [chatgpt/claude/grok/gemini_web/perplexity/poe/deepseek/openai/anthropic/ollama/gemini/openrouter] (default: chatgpt): " provider_input || true
+  if [[ -n "${provider_input:-}" ]]; then
+    provider_choice="${provider_input}"
+  fi
+  "${VENV_PY}" -m clausy provider "${provider_choice}" || true
 fi
 
 OPENCLAW_ARGS=()
@@ -91,6 +152,13 @@ else
   echo "Skipping service setup and continuing install success." >&2
 fi
 
+if is_interactive && [[ "${NO_BROWSER}" -eq 0 ]]; then
+  read -r -p "Install Chromium fallback now? [Y/n] " chromium_input || true
+  if is_yes "${chromium_input:-}"; then
+    "${VENV_PY}" -m playwright install chromium || true
+  fi
+fi
+
 BROWSER_ARGS=("--venv-python" "${VENV_PY}")
 if [[ "${DOCKER_MODE}" -eq 1 ]]; then
   BROWSER_ARGS+=("--docker")
@@ -106,9 +174,23 @@ if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.fin
   "${VENV_PY}" -m clausy.first_run_browser "${BROWSER_ARGS[@]}" || true
 fi
 
+if is_interactive; then
+  read -r -p "Add Clausy to PATH in shell rc? [y/N] " add_path_input || true
+  add_path_normalized="$(printf '%s' "${add_path_input:-}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${add_path_normalized}" == "y" || "${add_path_normalized}" == "yes" ]]; then
+    append_path_to_shell_rc "${VENV_BIN_PATH}" || true
+  fi
+fi
+
 SELECTED_BASE_URL="http://127.0.0.1:3108/v1"
 
 echo
 echo "Clausy install complete."
 echo "OpenClaw provider configured for: ${SELECTED_BASE_URL}"
 echo "A backup of ~/.openclaw/openclaw.json is created before non-dry-run writes."
+echo
+echo "Quick commands:"
+echo "  clausy      # status/help"
+echo "  clausy start"
+echo "  clausy stop"
+echo "  clausy chrome"

@@ -59,6 +59,33 @@ def test_install_sh_invokes_first_run_browser_helper():
     assert 'clausy.first_run_browser' in content
 
 
+def test_install_sh_prompts_for_provider_when_interactive():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'read -r -p "Select provider' in content
+    assert '"${VENV_PY}" -m clausy provider "${provider_choice}"' in content
+
+
+def test_install_sh_prompts_for_optional_chromium_install_when_interactive():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'Install Chromium fallback now? [Y/n]' in content
+    assert '"${VENV_PY}" -m playwright install chromium' in content
+
+
+def test_install_sh_supports_optional_path_rc_append_without_duplicates():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'Add Clausy to PATH in shell rc? [y/N]' in content
+    assert 'append_path_to_shell_rc' in content
+    assert 'grep -Fqs' in content
+
+
+def test_install_sh_prints_post_install_command_help_block():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'clausy      # status/help' in content
+    assert 'clausy start' in content
+    assert 'clausy stop' in content
+    assert 'clausy chrome' in content
+
+
 def test_install_sh_handles_empty_openclaw_args_under_nounset():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then' in content

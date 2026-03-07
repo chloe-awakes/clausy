@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import logging
 import math
 import os
@@ -6,6 +7,7 @@ import re
 import time
 import threading
 import subprocess
+from pathlib import Path
 from typing import Dict
 from playwright.sync_api import sync_playwright
 
@@ -70,6 +72,23 @@ class BrowserPool:
         self._pages: Dict[str, object] = {}
         self._bootstrap_proc = None
 
+    def _browser_pid_file_path(self) -> Path:
+        return Path.home() / ".config" / "clausy" / "browser-bootstrap.pid"
+
+    def _persist_bootstrap_browser_pid(self, pid: int) -> None:
+        payload = {
+            "pid": int(pid),
+            "cdp_port": int(self.cdp_port),
+            "profile_dir": self.profile_dir,
+            "managed_by": "clausy",
+        }
+        try:
+            path = self._browser_pid_file_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        except OSError:
+            logger.debug("Failed to persist Clausy-managed browser PID metadata", exc_info=True)
+
     def _connect_over_cdp(self):
         return self._pw.chromium.connect_over_cdp(f"http://{self.cdp_host}:{self.cdp_port}")
 
@@ -130,6 +149,7 @@ class BrowserPool:
         )
         os.makedirs(self.profile_dir, exist_ok=True)
         self._bootstrap_proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self._persist_bootstrap_browser_pid(self._bootstrap_proc.pid)
 
     def start(self) -> None:
         with self._lock:

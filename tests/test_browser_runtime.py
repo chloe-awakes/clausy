@@ -1,5 +1,7 @@
+import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from clausy.browser import BrowserPool
@@ -323,6 +325,48 @@ class BrowserPoolAutoInstallTests(unittest.TestCase):
         msg = str(ctx.exception)
         self.assertIn("auto-install", msg.lower())
         self.assertIn("CLAUSY_BROWSER_BINARY", msg)
+
+    @patch("clausy.browser.subprocess.Popen")
+    @patch("clausy.browser.detect_browser_binary", return_value="/usr/bin/chromium")
+    @patch("clausy.browser.BrowserPool._browser_pid_file_path")
+    def test_bootstrap_writes_managed_browser_pid_metadata(self, mock_pid_path, _mock_detect_browser_binary, mock_popen):
+        class _Proc:
+            pid = 9898
+
+        pid_file = Path("/tmp/clausy-browser-pid.json")
+        mock_pid_path.return_value = pid_file
+        mock_popen.return_value = _Proc()
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9222, profile_dir="./profile", home_url="https://chatgpt.com")
+        pool._pw = Mock()
+        pool._pw.chromium.executable_path = "/pw/chromium"
+
+        with patch("pathlib.Path.write_text") as mock_write_text:
+            pool._bootstrap_browser()
+
+        payload = json.loads(mock_write_text.call_args.args[0])
+        self.assertEqual(payload["pid"], 9898)
+        self.assertEqual(payload["cdp_port"], 9222)
+        self.assertTrue(payload["profile_dir"].endswith("profile"))
+
+    @patch("clausy.browser.subprocess.Popen")
+    @patch("clausy.browser.detect_browser_binary", return_value="/usr/bin/chromium")
+    @patch("clausy.browser.BrowserPool._browser_pid_file_path")
+    def test_bootstrap_ignores_pid_metadata_write_failure(self, mock_pid_path, _mock_detect_browser_binary, mock_popen):
+        class _Proc:
+            pid = 9898
+
+        mock_pid_path.return_value = Path("/tmp/clausy-browser-pid.json")
+        mock_popen.return_value = _Proc()
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9222, profile_dir="./profile", home_url="https://chatgpt.com")
+        pool._pw = Mock()
+        pool._pw.chromium.executable_path = "/pw/chromium"
+
+        with patch("pathlib.Path.write_text", side_effect=OSError("disk full")):
+            pool._bootstrap_browser()
+
+        mock_popen.assert_called_once()
 
 
 class BrowserPoolProfileSwitchTests(unittest.TestCase):

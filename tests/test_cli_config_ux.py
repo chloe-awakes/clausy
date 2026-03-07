@@ -85,6 +85,12 @@ def test_start_creates_pid_and_stop_handles_not_running(monkeypatch, tmp_path, c
     # Simulate stale pid on stop
     monkeypatch.setattr(cli, "_try_stop_service_manager", lambda: False)
     monkeypatch.setattr(cli.os, "kill", lambda pid, sig: (_ for _ in ()).throw(ProcessLookupError()))
+
+    class _PsResult:
+        returncode = 1
+        stdout = ""
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: _PsResult())
     rc_stop = cli.main(["stop"])
     out_stop = capsys.readouterr().out
 
@@ -112,3 +118,70 @@ def test_status_prints_health_snapshot(monkeypatch, tmp_path, capsys):
     assert rc == 0
     assert "health=ok" in out
     assert "provider=chatgpt" in out
+
+
+def test_stop_terminates_only_clausy_managed_browser_process(monkeypatch, tmp_path, capsys):
+    pid_file = tmp_path / "clausy.pid"
+    browser_pid_file = tmp_path / "browser-bootstrap.pid"
+    pid_file.write_text("1234\n", encoding="utf-8")
+    browser_pid_file.write_text(
+        json.dumps({"pid": 4321, "cdp_port": 9222, "profile_dir": "/tmp/profile"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_pid_file_path", lambda: pid_file)
+    monkeypatch.setattr(cli, "_browser_pid_file_path", lambda: browser_pid_file)
+    monkeypatch.setattr(cli, "_try_stop_service_manager", lambda: False)
+
+    killed = []
+
+    def _fake_kill(pid, sig):
+        killed.append((pid, sig))
+
+    monkeypatch.setattr(cli.os, "kill", _fake_kill)
+
+    class _PsResult:
+        returncode = 0
+        stdout = "chromium --remote-debugging-port=9222 --user-data-dir=/tmp/profile"
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: _PsResult())
+
+    rc = cli.main(["stop"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "Stopped Clausy process" in out
+    assert "Stopped Clausy-managed browser" in out
+    assert (1234, cli.signal.SIGTERM) in killed
+    assert (4321, cli.signal.SIGTERM) in killed
+    assert not browser_pid_file.exists()
+
+
+def test_stop_does_not_terminate_unverified_browser_process(monkeypatch, tmp_path, capsys):
+    browser_pid_file = tmp_path / "browser-bootstrap.pid"
+    browser_pid_file.write_text(
+        json.dumps({"pid": 7777, "cdp_port": 9222, "profile_dir": "/tmp/profile"}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "_pid_file_path", lambda: tmp_path / "missing.pid")
+    monkeypatch.setattr(cli, "_browser_pid_file_path", lambda: browser_pid_file)
+    monkeypatch.setattr(cli, "_try_stop_service_manager", lambda: False)
+
+    killed = []
+
+    monkeypatch.setattr(cli.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+
+    class _PsResult:
+        returncode = 0
+        stdout = "Google Chrome --profile-directory=Default"
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: _PsResult())
+
+    rc = cli.main(["stop"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "not running" in out.lower()
+    assert killed == []
+    assert not browser_pid_file.exists()

@@ -166,6 +166,11 @@ What this means:
 - the installer also configures and auto-starts a per-user background service by default:
   - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
   - Linux: `~/.config/systemd/user/clausy.service`
+- on interactive installs (TTY), the installer prompts for:
+  - preferred provider (persisted via `clausy provider ...`)
+  - optional Playwright Chromium fallback install (`Install Chromium fallback now? [Y/n]`)
+  - optional shell PATH update (`Add Clausy to PATH in shell rc? [y/N]`) with duplicate-safe append for bash/zsh/fish
+- in non-interactive mode (e.g. curl pipes, CI), prompts are skipped and defaults stay unchanged
 - on first local interactive install, the installer auto-opens a visible Chrome bootstrap (using `clausy chrome`) so you can log in once; this is one-time and then skipped on later reinstalls
 
 Re-running the installer updates the service definition and restarts it cleanly.
@@ -372,6 +377,7 @@ CLI-persisted config file:
 
 - `~/.config/clausy/config.json`
 - lifecycle pid file: `~/.config/clausy/clausy.pid` (used by `clausy start/stop`)
+- Clausy-managed browser pid metadata: `~/.config/clausy/browser-bootstrap.pid` (used so `clausy stop` only terminates browser processes launched by Clausy itself)
 
 Effective runtime precedence:
 
