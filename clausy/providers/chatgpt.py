@@ -35,30 +35,55 @@ class ChatGPTWebProvider(WebChatProvider):
         return None
 
     def _find_composer(self, page):
-        # Accessibility-first, then stable ids/classes, then generic contenteditable fallback.
-        try:
-            textbox = page.get_by_role("textbox")
-            if textbox.count() > 0:
-                return textbox.last
-        except Exception:
-            pass
-
-        return self._first_locator(
+        # Prefer stable ChatGPT composer hooks first; role=textbox can match sidebar/search fields.
+        explicit = self._first_locator(
             page,
             [
                 "#prompt-textarea",
                 "[data-testid='prompt-textarea']",
                 "textarea#prompt-textarea",
                 "textarea[data-testid='prompt-textarea']",
+                "div#prompt-textarea",
+                "form #prompt-textarea",
                 "textarea[placeholder*='Message']",
                 "textarea[placeholder*='Nachricht']",
-                "div#prompt-textarea",
                 "div[contenteditable='true'][role='textbox']",
                 "div[contenteditable='true'][aria-label*='Message']",
                 "div[contenteditable='true'][aria-label*='Nachricht']",
                 "div[contenteditable='true']",
             ],
         )
+        if explicit is not None:
+            return explicit.first if hasattr(explicit, "first") else explicit
+
+        # Accessibility fallback: pick an interactable textbox, prefer prompt-textarea/contenteditable.
+        try:
+            textbox = page.get_by_role("textbox")
+            count = textbox.count()
+            if count > 0:
+                preferred = None
+                for i in range(min(count, 12)):
+                    cand = textbox.nth(i)
+                    try:
+                        cid = (cand.get_attribute("id") or "").lower()
+                        ctest = (cand.get_attribute("data-testid") or "").lower()
+                        role = (cand.get_attribute("role") or "").lower()
+                        editable = cand.get_attribute("contenteditable")
+                        if "prompt-textarea" in cid or "prompt-textarea" in ctest:
+                            return cand
+                        if editable == "true" and role == "textbox":
+                            preferred = cand
+                    except Exception:
+                        pass
+                    if self._is_composer_interactable(cand):
+                        preferred = preferred or cand
+                if preferred is not None:
+                    return preferred
+                return textbox.last
+        except Exception:
+            pass
+
+        return None
 
     def _find_send_button(self, page):
         # Prefer explicit button role with translated send/submit names.
@@ -80,7 +105,10 @@ class ChatGPTWebProvider(WebChatProvider):
             page,
             [
                 "button#composer-submit-button",
+                "#composer-submit-button",
                 "button[data-testid='send-button']",
+                "button[data-testid='composer-submit-button']",
+                "button[aria-label*='Send prompt']",
                 "button[aria-label*='Send']",
                 "button[aria-label*='Senden']",
                 "button[type='submit']",

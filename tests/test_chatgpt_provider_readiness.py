@@ -111,3 +111,77 @@ def test_send_prompt_falls_back_to_enter_when_send_button_missing(monkeypatch):
     assert composer.clicked == 1
     assert page.keyboard.typed == ["hello"]
     assert "Enter" in page.keyboard.presses
+
+
+class _MiniNode:
+    def __init__(self, attrs: dict[str, str] | None = None):
+        self.attrs = attrs or {}
+
+    def get_attribute(self, name: str):
+        return self.attrs.get(name)
+
+
+class _MiniLocator:
+    def __init__(self, nodes: list[_MiniNode] | None = None):
+        self.nodes = nodes or []
+
+    def count(self):
+        return len(self.nodes)
+
+    def nth(self, i: int):
+        return self.nodes[i]
+
+    @property
+    def first(self):
+        return self.nodes[0]
+
+    @property
+    def last(self):
+        return self.nodes[-1]
+
+
+class _ComposerChoicePage:
+    def __init__(self):
+        self._composer = _MiniNode({"id": "prompt-textarea", "role": "textbox", "contenteditable": "true"})
+        self._wrong = _MiniNode({"id": "search", "role": "textbox"})
+
+    def locator(self, selector: str):
+        if selector in {"#prompt-textarea", "div#prompt-textarea"}:
+            return _MiniLocator([self._composer])
+        return _MiniLocator([])
+
+    def get_by_role(self, role: str):
+        if role == "textbox":
+            return _MiniLocator([self._wrong, self._composer])
+        return _MiniLocator([])
+
+
+def test_find_composer_prefers_prompt_textarea_over_generic_role_textboxes(monkeypatch):
+    provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
+    page = _ComposerChoicePage()
+
+    monkeypatch.setattr(provider, "_is_composer_interactable", lambda _c: False)
+
+    composer = provider._find_composer(page)
+
+    assert composer is page._composer
+
+
+class _SendSelectorPage:
+    def locator(self, selector: str):
+        if selector == "button[aria-label*='Send prompt']":
+            return _MiniLocator([_MiniNode({"aria-label": "Send prompt"})])
+        return _MiniLocator([])
+
+    def get_by_role(self, _role: str, name=None):
+        _ = name
+        return _MiniLocator([])
+
+
+def test_find_send_button_matches_send_prompt_aria_selector_when_role_lookup_is_empty():
+    provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
+    page = _SendSelectorPage()
+
+    btn = provider._find_send_button(page)
+
+    assert btn is not None
