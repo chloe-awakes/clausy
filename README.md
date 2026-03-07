@@ -145,7 +145,19 @@ Clausy now performs runtime browser detection and startup:
 
 ## Install
 
-One-command bootstrap (recommended):
+One-line bootstrap (recommended):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash
+```
+
+Docker-mode OpenClaw wiring (provider base URL `5000` instead of local `3108`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --docker
+```
+
+Module bootstrap alternative:
 
 ```bash
 python -m clausy.install
@@ -519,7 +531,9 @@ python scripts/openclaw_install_clausy.py
 
 This will:
 
-- add a `clausy` provider (default base URL `http://127.0.0.1:5000/v1`, override with `--base-url`)
+- add a `clausy` provider (default base URL `http://127.0.0.1:3108/v1`)
+- use Docker mode (`http://127.0.0.1:5000/v1`) when passed `--docker`
+- allow explicit override with `--base-url` (takes precedence over mode defaults)
 - set it as the default/primary model
 - keep all existing config and save the previous primary under `models.aliases["previous-primary*"]`
 
