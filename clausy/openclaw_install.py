@@ -8,7 +8,7 @@ import os
 import shutil
 import sys
 from datetime import datetime
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 DEFAULT_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 DEFAULT_BASE_URL = "http://127.0.0.1:3108/v1"
@@ -42,6 +42,29 @@ def _ensure_dict(root: Dict[str, Any], key: str) -> Dict[str, Any]:
     return root[key]
 
 
+def _normalize_provider_models(raw_models: Any) -> List[Dict[str, Any]]:
+    """Normalize provider models to schema-compatible list[object]."""
+    normalized: List[Dict[str, Any]] = []
+    if not isinstance(raw_models, list):
+        return normalized
+
+    for item in raw_models:
+        if isinstance(item, str):
+            model_id = item.strip()
+            if model_id:
+                normalized.append({"id": model_id})
+            continue
+
+        if isinstance(item, dict):
+            model_id = item.get("id")
+            if isinstance(model_id, str) and model_id.strip():
+                model_obj = dict(item)
+                model_obj["id"] = model_id.strip()
+                normalized.append(model_obj)
+
+    return normalized
+
+
 def _install(
     cfg: Dict[str, Any],
     base_url: str,
@@ -56,24 +79,23 @@ def _install(
     previous_primary = model_defaults.get("primary")
 
     models = _ensure_dict(cfg, "models")
+    models.pop("aliases", None)
+    models.pop("default", None)
+
     providers = _ensure_dict(models, "providers")
     provider = providers.get(provider_name)
     if not isinstance(provider, dict):
         provider = {}
 
-    existing_models = provider.get("models")
-    if isinstance(existing_models, list):
-        model_ids = [m for m in existing_models if isinstance(m, str) and m.strip()]
-    else:
-        model_ids = []
-
-    if model_id not in model_ids:
-        model_ids.append(model_id)
+    normalized_models = _normalize_provider_models(provider.get("models"))
+    existing_ids = {m["id"] for m in normalized_models}
+    if model_id not in existing_ids:
+        normalized_models.append({"id": model_id})
 
     provider.update(
         {
             "baseUrl": base_url,
-            "models": model_ids,
+            "models": normalized_models,
         }
     )
     provider.pop("type", None)
