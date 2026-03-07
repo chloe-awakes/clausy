@@ -157,6 +157,12 @@ Docker-mode OpenClaw wiring (provider base URL `5000` instead of local `3108`):
 curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --docker
 ```
 
+What this means:
+
+- local/native Clausy (`python -m clausy`) listens on `127.0.0.1:3108`
+- Docker/Compose deployments usually expose Clausy on `127.0.0.1:5000`
+- the installer auto-wires OpenClaw to the right base URL for the chosen mode
+
 Module bootstrap alternative:
 
 ```bash
@@ -536,6 +542,19 @@ This will:
 - allow explicit override with `--base-url` (takes precedence over mode defaults)
 - set it as the default/primary model
 - keep all existing config and save the previous primary under `models.aliases["previous-primary*"]`
+
+Examples:
+
+```bash
+# local/default (wires OpenClaw to http://127.0.0.1:3108/v1)
+clausy-openclaw-install
+
+# docker mode (wires OpenClaw to http://127.0.0.1:5000/v1)
+clausy-openclaw-install --docker
+
+# explicit custom URL (overrides both defaults)
+clausy-openclaw-install --base-url http://127.0.0.1:9000/v1
+```
 
 Use `--dry-run` to preview changes.
 
