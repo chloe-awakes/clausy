@@ -18,7 +18,6 @@ docker run -d --name "$CONTAINER_NAME" \
   -p 127.0.0.1:6080:6080 \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
-  -e CLAUSY_ENABLE_NOVNC=1 \
   -e CLAUSY_NOVNC_PORT=6080 \
   -e CLAUSY_VNC_PORT=5900 \
   "$IMAGE_TAG" >/dev/null

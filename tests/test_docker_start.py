@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "docker-start.sh"
+DOCKERFILE = REPO_ROOT / "Dockerfile"
 
 
 def _free_port() -> int:
@@ -137,6 +138,11 @@ def test_docker_start_novnc_disabled_by_default():
     assert "noVNC disabled" in combined
     assert "x11vnc command:" not in combined
     assert "noVNC proxy command:" not in combined
+
+
+def test_docker_image_enables_novnc_by_default():
+    dockerfile_text = DOCKERFILE.read_text(encoding="utf-8")
+    assert "ENV CLAUSY_ENABLE_NOVNC=1" in dockerfile_text
 
 
 def test_docker_start_novnc_enabled_emits_startup_commands():

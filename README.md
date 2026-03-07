@@ -283,7 +283,6 @@ docker build -t clausy . && docker run --rm \
   -e CLAUSY_CDP_PORT=9200 \
   -e CLAUSY_BROWSER_BOOTSTRAP=auto \
   -e CLAUSY_HOST_BROWSER_LAUNCH_CMD='true' \
-  -e CLAUSY_ENABLE_NOVNC=1 \
   -e CLAUSY_NOVNC_PORT=6080 \
   -e CLAUSY_VNC_PORT=5900 \
   -v "$(pwd)/profile:/app/profile" \
@@ -373,7 +372,7 @@ Environment variables:
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
 - `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, app default `0`; Docker image sets `1` by default)
 - `CLAUSY_HEADLESS` (`0|1`, default `0`)
-- `CLAUSY_ENABLE_NOVNC` (`0|1`, default `0`; when enabled docker-start launches x11vnc + noVNC)
+- `CLAUSY_ENABLE_NOVNC` (`0|1`, app default `0`; Docker image sets `1` by default; when enabled docker-start launches x11vnc + noVNC)
 - `CLAUSY_NOVNC_PORT` (default `6080`)
 - `CLAUSY_VNC_PORT` (default `5900`)
 - `CLAUSY_SESSION_HEADER` (default `X-Clausy-Session`)
