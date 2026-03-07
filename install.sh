@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]:-${0:-}}"
+if [[ -n "${SCRIPT_PATH}" && -f "${SCRIPT_PATH}" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+else
+  SCRIPT_DIR="$(pwd)"
+fi
+
 REPO_ROOT="${SCRIPT_DIR}"
+GIT_PACKAGE_URL="git+https://github.com/chloe-awakes/clausy.git"
 VENV_DIR="${VENV_DIR:-.venv}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
@@ -38,7 +45,7 @@ VENV_PY="${VENV_DIR}/bin/python"
 if [[ -f "${REPO_ROOT}/pyproject.toml" ]]; then
   "${VENV_PY}" -m pip install "${REPO_ROOT}"
 else
-  "${VENV_PY}" -m pip install clausy
+  "${VENV_PY}" -m pip install "${GIT_PACKAGE_URL}"
 fi
 
 OPENCLAW_ARGS=()

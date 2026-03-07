@@ -27,3 +27,20 @@ def test_install_sh_supports_forwarding_docker_flag():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert '--docker' in content
     assert 'OPENCLAW_ARGS+=("--docker")' in content
+
+
+def test_install_sh_supports_forwarding_dry_run_flag():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert '--dry-run' in content
+    assert 'OPENCLAW_ARGS+=("--dry-run")' in content
+
+
+def test_install_sh_is_safe_when_bash_source_is_unset():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'SCRIPT_PATH="${BASH_SOURCE[0]:-${0:-}}"' in content
+
+
+def test_install_sh_falls_back_to_github_install_when_not_in_repo_checkout():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'GIT_PACKAGE_URL="git+https://github.com/chloe-awakes/clausy.git"' in content
+    assert '"${VENV_PY}" -m pip install "${GIT_PACKAGE_URL}"' in content
