@@ -17,6 +17,7 @@ DOCKER_MODE=0
 DRY_RUN=0
 NO_SERVICE=0
 NO_BROWSER=0
+PATH_PERSISTED=0
 
 TTY_PROMPT_FD=""
 
@@ -208,6 +209,9 @@ fi
 
 if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("clausy.first_run_browser") else 1)'; then
   "${VENV_PY}" -m clausy.first_run_browser "${BROWSER_ARGS[@]}" || true
+  if is_interactive && [[ "${NO_BROWSER}" -eq 0 ]] && [[ "${DOCKER_MODE}" -eq 0 ]] && [[ "${DRY_RUN}" -eq 0 ]]; then
+    "${VENV_PY}" -m clausy.first_run_browser --venv-python "${VENV_PY}" --provider "${provider_choice}" --open-provider-only || true
+  fi
 fi
 
 if is_interactive; then
@@ -215,6 +219,7 @@ if is_interactive; then
   add_path_normalized="$(printf '%s' "${add_path_input:-}" | tr '[:upper:]' '[:lower:]')"
   if [[ "${add_path_normalized}" == "y" || "${add_path_normalized}" == "yes" ]]; then
     append_path_to_shell_rc "${VENV_BIN_PATH}" || true
+    PATH_PERSISTED=1
   fi
 fi
 
@@ -229,6 +234,12 @@ echo "Clausy install complete."
 echo "OpenClaw provider configured for: ${SELECTED_BASE_URL}"
 echo "A backup of ~/.openclaw/openclaw.json is created before non-dry-run writes."
 echo
+if [[ "${PATH_PERSISTED}" -eq 0 ]]; then
+  echo "Use Clausy immediately in this shell:"
+  echo "  export PATH=\"${VENV_BIN_PATH}:\$PATH\""
+  echo
+fi
+
 echo "Quick commands:"
 echo "  clausy = status and help"
 echo "  clausy start/stop"

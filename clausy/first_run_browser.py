@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -93,6 +94,20 @@ def open_provider_page(url: str) -> bool:
     return True
 
 
+def provider_manual_open_command(url: str) -> str:
+    command = build_provider_open_command(url)
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def open_provider_page_with_fallback(url: str) -> bool:
+    if open_provider_page(url):
+        return True
+
+    print("Could not auto-open provider URL. Run this command manually:")
+    print(f"  {provider_manual_open_command(url)}")
+    return False
+
+
 def build_chrome_launch_env(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
     env = dict(base_env or os.environ)
     env["CLAUSY_BROWSER_BOOTSTRAP"] = "always"
@@ -159,7 +174,7 @@ def maybe_auto_open_browser(
     if not launched:
         return False
 
-    open_provider_page(provider_url(provider))
+    open_provider_page_with_fallback(provider_url(provider))
     mark_first_run_complete(marker_path)
     return True
 
@@ -172,7 +187,16 @@ def main() -> int:
     parser.add_argument("--docker", action="store_true", help="Skip browser auto-open in Docker mode")
     parser.add_argument("--dry-run", action="store_true", help="Do not launch browser")
     parser.add_argument("--no-browser", action="store_true", help="Skip browser auto-open")
+    parser.add_argument(
+        "--open-provider-only",
+        action="store_true",
+        help="Only open selected provider URL (no one-time marker semantics)",
+    )
     args = parser.parse_args()
+
+    if args.open_provider_only:
+        open_provider_page_with_fallback(provider_url(args.provider))
+        return 0
 
     launched = maybe_auto_open_browser(
         venv_python=args.venv_python,

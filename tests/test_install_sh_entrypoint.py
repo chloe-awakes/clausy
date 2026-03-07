@@ -60,6 +60,12 @@ def test_install_sh_invokes_first_run_browser_helper():
     assert '"--provider" "${provider_choice}"' in content
 
 
+def test_install_sh_explicitly_retries_provider_open_after_first_run_helper():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert '--open-provider-only' in content
+    assert 'if is_interactive && [[ "${NO_BROWSER}" -eq 0 ]] && [[ "${DOCKER_MODE}" -eq 0 ]] && [[ "${DRY_RUN}" -eq 0 ]]; then' in content
+
+
 def test_install_sh_prompts_for_provider_when_interactive():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'prompt_read provider_input "Select provider' in content
@@ -84,6 +90,14 @@ def test_install_sh_supports_optional_path_rc_append_without_duplicates():
     assert 'prompt_read add_path_input "Add Clausy to PATH in shell rc? [y/N] "' in content
     assert 'append_path_to_shell_rc' in content
     assert 'grep -Fqs' in content
+
+
+def test_install_sh_prints_immediate_path_export_when_not_persisted():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'PATH_PERSISTED=0' in content
+    assert 'Use Clausy immediately in this shell:' in content
+    assert 'export PATH=' in content
+    assert '${VENV_BIN_PATH}:\\$PATH' in content
 
 
 def test_install_sh_prints_post_install_command_help_block():
