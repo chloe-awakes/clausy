@@ -264,6 +264,67 @@ class BrowserPoolCdpTimeoutParsingTests(unittest.TestCase):
                 mock_wait_for_cdp.assert_called_once_with(timeout_s=20.0)
 
 
+class BrowserPoolAutoInstallTests(unittest.TestCase):
+    @patch("clausy.browser.subprocess.Popen")
+    @patch("clausy.browser.detect_browser_binary")
+    @patch("clausy.browser.install_playwright_chromium")
+    def test_bootstrap_uses_existing_browser_without_auto_install(
+        self,
+        mock_install_playwright,
+        mock_detect_browser_binary,
+        mock_popen,
+    ):
+        mock_detect_browser_binary.return_value = "/usr/bin/chromium"
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9222, profile_dir="./profile", home_url="https://chatgpt.com")
+        pool._pw = Mock()
+        pool._pw.chromium.executable_path = "/pw/chromium"
+
+        pool._bootstrap_browser()
+
+        mock_install_playwright.assert_not_called()
+        mock_popen.assert_called_once()
+
+    @patch("clausy.browser.subprocess.Popen")
+    @patch("clausy.browser.detect_browser_binary")
+    @patch("clausy.browser.install_playwright_chromium")
+    def test_bootstrap_attempts_auto_install_once_then_proceeds(
+        self,
+        mock_install_playwright,
+        mock_detect_browser_binary,
+        mock_popen,
+    ):
+        mock_detect_browser_binary.side_effect = [None, "/installed/chromium"]
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9222, profile_dir="./profile", home_url="https://chatgpt.com")
+        pool._pw = Mock()
+        pool._pw.chromium.executable_path = "/pw/chromium"
+
+        pool._bootstrap_browser()
+
+        mock_install_playwright.assert_called_once_with(python_executable=None)
+        self.assertEqual(mock_detect_browser_binary.call_count, 2)
+        mock_popen.assert_called_once()
+
+    @patch("clausy.browser.detect_browser_binary", return_value=None)
+    @patch("clausy.browser.install_playwright_chromium", side_effect=RuntimeError("install failed"))
+    def test_bootstrap_returns_actionable_error_when_auto_install_fails(
+        self,
+        _mock_install_playwright,
+        _mock_detect_browser_binary,
+    ):
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9222, profile_dir="./profile", home_url="https://chatgpt.com")
+        pool._pw = Mock()
+        pool._pw.chromium.executable_path = "/pw/chromium"
+
+        with self.assertRaises(RuntimeError) as ctx:
+            pool._bootstrap_browser()
+
+        msg = str(ctx.exception)
+        self.assertIn("auto-install", msg.lower())
+        self.assertIn("CLAUSY_BROWSER_BINARY", msg)
+
+
 class BrowserPoolProfileSwitchTests(unittest.TestCase):
     @patch("clausy.browser.BrowserPool.start")
     def test_switch_profile_restarts_when_profile_changes(self, mock_start):

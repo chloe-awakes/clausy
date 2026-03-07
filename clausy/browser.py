@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import math
 import os
 import re
@@ -12,10 +13,14 @@ from .browser_runtime import (
     BrowserRuntimeConfig,
     build_browser_launch_command,
     detect_browser_binary,
+    install_playwright_chromium,
+    is_playwright_auto_install_enabled,
     parse_bootstrap_mode,
     parse_browser_extra_args,
 )
 
+
+logger = logging.getLogger(__name__)
 
 _PROFILE_TRAVERSAL_SEGMENT_RE = re.compile(r"(^|[\\/])\.\.([\\/]|$)")
 _CDP_CONNECT_TIMEOUT_DEFAULT_S = 20.0
@@ -83,11 +88,32 @@ class BrowserPool:
         playwright_binary = self._pw.chromium.executable_path
         browser_binary = detect_browser_binary(playwright_binary=playwright_binary)
         if not browser_binary:
-            install_hint = "python -m playwright install chromium"
-            raise RuntimeError(
-                "Browser bootstrap requested but no Chrome/Chromium binary was found. "
-                f"Set CLAUSY_BROWSER_BINARY or install Chromium via: {install_hint}"
+            if not is_playwright_auto_install_enabled():
+                raise RuntimeError(
+                    "Browser bootstrap requested but no Chrome/Chromium binary was found and "
+                    "Playwright auto-install is disabled (CLAUSY_BROWSER_AUTO_INSTALL=0). "
+                    "Set CLAUSY_BROWSER_BINARY or run 'python -m playwright install chromium'."
+                )
+
+            logger.info(
+                "No usable Chrome/Chromium binary detected; attempting one-time Playwright Chromium auto-install..."
             )
+            try:
+                install_playwright_chromium(python_executable=None)
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    "Browser bootstrap requested but no Chrome/Chromium binary was found, and "
+                    "one-time Playwright Chromium auto-install failed. "
+                    "Set CLAUSY_BROWSER_BINARY or run 'python -m playwright install chromium' manually. "
+                    f"Install error: {exc}"
+                ) from exc
+
+            browser_binary = detect_browser_binary(playwright_binary=playwright_binary)
+            if not browser_binary:
+                raise RuntimeError(
+                    "Playwright Chromium auto-install completed but no usable browser binary was detected. "
+                    "Set CLAUSY_BROWSER_BINARY or run 'python -m playwright install chromium' and retry."
+                )
 
         headless = (os.environ.get("CLAUSY_HEADLESS", "0").strip().lower() in {"1", "true", "yes", "on"})
         extra_args_raw = os.environ.get("CLAUSY_BROWSER_ARGS")

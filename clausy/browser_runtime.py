@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from typing import Callable
@@ -107,6 +108,30 @@ def detect_browser_binary(
         if resolved and _is_safe_path(resolved):
             return resolved
     return None
+
+
+def is_playwright_auto_install_enabled(raw: str | None = None) -> bool:
+    value = (os.environ.get("CLAUSY_BROWSER_AUTO_INSTALL") if raw is None else raw) or "1"
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def install_playwright_chromium(*, python_executable: str | None = None) -> None:
+    python_bin = (python_executable or "").strip() or sys.executable
+    cmd = [python_bin, "-m", "playwright", "install", "chromium"]
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            "Failed to auto-install Playwright Chromium. "
+            "Run 'python -m playwright install chromium' manually and retry. "
+            f"Command exited with code {exc.returncode}."
+        ) from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Python executable for Playwright auto-install was not found. "
+            "Set CLAUSY_BROWSER_BINARY to an existing Chrome/Chromium binary or "
+            "run 'python -m playwright install chromium' manually."
+        ) from exc
 
 
 def build_browser_launch_command(binary: str, cfg: BrowserRuntimeConfig) -> list[str]:

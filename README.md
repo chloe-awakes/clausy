@@ -139,6 +139,7 @@ Tool calls are collected and returned to the client.
 Clausy now performs runtime browser detection and startup:
 - tries existing CDP endpoint first (`CLAUSY_CDP_HOST`/`CLAUSY_CDP_PORT`)
 - if unavailable, bootstraps Chrome/Chromium automatically by default (`CLAUSY_BROWSER_BOOTSTRAP=auto`)
+- if no usable Chrome/Chromium binary is found during bootstrap, attempts a one-time `python -m playwright install chromium` fallback (disable with `CLAUSY_BROWSER_AUTO_INSTALL=0`)
 - supports explicit binary override with `CLAUSY_BROWSER_BINARY`
 
 ---
@@ -387,6 +388,7 @@ Environment variables:
 - `CLAUSY_PROFILE_ROTATION_COUNT` (default `0`) number of rotating profile suffixes (`<profile>-rot1..rotN`); values `0`/`1` disable effective rotation
 - `CLAUSY_BROWSER_BOOTSTRAP` (`auto|always|never`, default `auto`)
 - `CLAUSY_BROWSER_BINARY` (optional absolute path to Chrome/Chromium binary)
+- `CLAUSY_BROWSER_AUTO_INSTALL` (`0|1`, default `1`) allows one-time runtime fallback to `python -m playwright install chromium` when no browser binary is detected during bootstrap
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
 - `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`; valid range `0.1..300`, invalid values fall back to default)
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
