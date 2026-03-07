@@ -96,8 +96,15 @@ def test_install_sh_prints_immediate_path_export_when_not_persisted():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'PATH_PERSISTED=0' in content
     assert 'Use Clausy immediately in this shell:' in content
-    assert 'export PATH=' in content
-    assert '${VENV_BIN_PATH}:\\$PATH' in content
+    assert 'IMMEDIATE_PATH_EXPORT="export PATH=\\"${VENV_BIN_PATH}:\\$PATH\\""' in content
+    assert 'echo "  ${IMMEDIATE_PATH_EXPORT}"' in content
+
+
+def test_install_sh_prints_one_shot_clausy_command_when_interactive_and_path_not_persisted():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'if is_interactive && [[ "${PATH_PERSISTED}" -eq 0 ]]; then' in content
+    assert 'Run Clausy now without editing PATH:' in content
+    assert 'echo "  ${VENV_BIN_PATH}/clausy"' in content
 
 
 def test_install_sh_prints_post_install_command_help_block():

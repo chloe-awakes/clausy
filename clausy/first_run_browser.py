@@ -81,7 +81,7 @@ def build_provider_open_command(url: str, *, platform: str | None = None) -> lis
     if os_name == "nt":
         return ["cmd", "/c", "start", "", url]
     if os.uname().sysname == "Darwin":
-        return ["open", url]
+        return ["open", "-a", "Google Chrome", url]
     return ["xdg-open", url]
 
 

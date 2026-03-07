@@ -235,8 +235,13 @@ echo "OpenClaw provider configured for: ${SELECTED_BASE_URL}"
 echo "A backup of ~/.openclaw/openclaw.json is created before non-dry-run writes."
 echo
 if [[ "${PATH_PERSISTED}" -eq 0 ]]; then
+  IMMEDIATE_PATH_EXPORT="export PATH=\"${VENV_BIN_PATH}:\$PATH\""
   echo "Use Clausy immediately in this shell:"
-  echo "  export PATH=\"${VENV_BIN_PATH}:\$PATH\""
+  echo "  ${IMMEDIATE_PATH_EXPORT}"
+  if is_interactive && [[ "${PATH_PERSISTED}" -eq 0 ]]; then
+    echo "Run Clausy now without editing PATH:"
+    echo "  ${VENV_BIN_PATH}/clausy"
+  fi
   echo
 fi
 

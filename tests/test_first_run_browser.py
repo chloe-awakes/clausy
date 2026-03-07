@@ -84,7 +84,16 @@ def test_build_provider_open_command_for_macos(monkeypatch):
 
     cmd = first_run_browser.build_provider_open_command("https://chatgpt.com")
 
-    assert cmd == ["open", "https://chatgpt.com"]
+    assert cmd == ["open", "-a", "Google Chrome", "https://chatgpt.com"]
+
+
+def test_provider_manual_open_command_for_macos_uses_chrome_app(monkeypatch):
+    monkeypatch.setattr(first_run_browser.os, "name", "posix")
+    monkeypatch.setattr(first_run_browser.os, "uname", lambda: type("U", (), {"sysname": "Darwin"})())
+
+    cmd = first_run_browser.provider_manual_open_command("https://chatgpt.com")
+
+    assert cmd == "open -a 'Google Chrome' https://chatgpt.com"
 
 
 def test_build_provider_open_command_for_linux(monkeypatch):
