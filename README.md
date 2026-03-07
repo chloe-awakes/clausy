@@ -223,9 +223,9 @@ playwright install chromium
 ```bash
 clausy status        # runtime snapshot
 clausy config        # show effective config (env > file > defaults)
-clausy start         # start Clausy in background with current config
+clausy start         # start Clausy in background with current config (opens configured provider page on browser startup)
 clausy stop          # stop running Clausy service/process (safe if not running)
-clausy chrome        # start in visible Chrome mode and open configured provider URL
+clausy chrome        # start in visible Chrome mode (also opens configured provider page on browser startup)
 ```
 
 With no args, `clausy` prints `status` plus concise usage help (it does **not** start the server).

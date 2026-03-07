@@ -185,6 +185,22 @@ class BrowserPool:
                 raise RuntimeError(f"Could not connect to Chrome/Chromium over CDP: {last_error}")
 
             self._context = self._browser.contexts[0] if self._browser.contexts else self._browser.new_context()
+            self._ensure_provider_home_page()
+
+    def _existing_pages(self) -> list[object]:
+        pages = getattr(self._context, "pages", None)
+        if pages is None:
+            return []
+        try:
+            return list(pages)
+        except TypeError:
+            return []
+
+    def _ensure_provider_home_page(self):
+        existing_pages = self._existing_pages()
+        page = existing_pages[0] if existing_pages else self._context.new_page()
+        page.goto(self.home_url, wait_until="domcontentloaded")
+        return page
 
     def switch_profile(self, profile_dir: str | None) -> bool:
         """Switch active browser profile directory; restart browser if changed.
@@ -222,7 +238,7 @@ class BrowserPool:
             if not self._browser:
                 self.start()
 
-            existing_pages = list(getattr(self._context, "pages", []) or [])
+            existing_pages = self._existing_pages()
             if existing_pages:
                 return existing_pages[0]
 
@@ -238,6 +254,11 @@ class BrowserPool:
                 self.start()
             if session_id in self._pages:
                 return self._pages[session_id]
+
+            existing_pages = self._existing_pages()
+            if not self._pages and existing_pages:
+                self._pages[session_id] = existing_pages[0]
+                return existing_pages[0]
 
             page = self._context.new_page()
             page.goto(self.home_url, wait_until="domcontentloaded")

@@ -1519,12 +1519,6 @@ def _post_turn_housekeeping(session_id: str, provider, meta: Dict[str, Any]) -> 
 def main():
     print("Starting Clausy server...")
     browser.start()
-    if _env_flag(os.environ.get("CLAUSY_OPEN_PROVIDER_ON_START"), default=False):
-        try:
-            page = browser.get_first_page()
-            page.goto(browser.home_url, wait_until="domcontentloaded")
-        except Exception:
-            pass
     app.run(host=BIND, port=PORT, debug=False, threaded=False)
 
 if __name__ == "__main__":

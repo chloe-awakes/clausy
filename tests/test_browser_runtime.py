@@ -369,6 +369,54 @@ class BrowserPoolAutoInstallTests(unittest.TestCase):
         mock_popen.assert_called_once()
 
 
+class BrowserPoolStartupNavigationTests(unittest.TestCase):
+    @patch("clausy.browser.sync_playwright")
+    @patch("clausy.browser.BrowserPool._connect_over_cdp")
+    def test_start_reuses_first_existing_page_for_provider_navigation(self, mock_connect, mock_sync_playwright):
+        page = Mock()
+        context = Mock()
+        context.pages = [page]
+
+        browser = Mock()
+        browser.contexts = [context]
+
+        pw = Mock()
+        pw.chromium = Mock()
+
+        mock_connect.return_value = browser
+        mock_sync_playwright.return_value.start.return_value = pw
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="./profile", home_url="https://claude.ai")
+        pool.start()
+
+        context.new_page.assert_not_called()
+        page.goto.assert_called_once_with("https://claude.ai", wait_until="domcontentloaded")
+
+    @patch("clausy.browser.sync_playwright")
+    @patch("clausy.browser.BrowserPool._connect_over_cdp")
+    def test_get_page_reuses_existing_first_page_for_first_session(self, mock_connect, mock_sync_playwright):
+        page = Mock()
+        context = Mock()
+        context.pages = [page]
+
+        browser = Mock()
+        browser.contexts = [context]
+
+        pw = Mock()
+        pw.chromium = Mock()
+
+        mock_connect.return_value = browser
+        mock_sync_playwright.return_value.start.return_value = pw
+
+        pool = BrowserPool(cdp_host="127.0.0.1", cdp_port=9200, profile_dir="./profile", home_url="https://claude.ai")
+        pool.start()
+        session_page = pool.get_page("abc")
+
+        self.assertIs(session_page, page)
+        context.new_page.assert_not_called()
+        self.assertIs(pool._pages["abc"], page)
+
+
 class BrowserPoolProfileSwitchTests(unittest.TestCase):
     @patch("clausy.browser.BrowserPool.start")
     def test_switch_profile_restarts_when_profile_changes(self, mock_start):

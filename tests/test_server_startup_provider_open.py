@@ -14,12 +14,8 @@ def test_provider_home_url_uses_selected_provider_and_env_override(monkeypatch):
     assert reloaded.browser.home_url == "https://claude.example.local"
 
 
-def test_main_opens_provider_page_when_requested(monkeypatch):
+def test_main_starts_server_without_explicit_open_provider_flag(monkeypatch):
     calls: list[str] = []
-
-    class _FakePage:
-        def goto(self, url: str, wait_until: str | None = None):
-            calls.append(f"goto:{url}:{wait_until}")
 
     class _FakeBrowser:
         home_url = "https://claude.ai"
@@ -27,11 +23,7 @@ def test_main_opens_provider_page_when_requested(monkeypatch):
         def start(self):
             calls.append("start")
 
-        def get_first_page(self):
-            calls.append("get_first_page")
-            return _FakePage()
-
-    monkeypatch.setenv("CLAUSY_OPEN_PROVIDER_ON_START", "1")
+    monkeypatch.delenv("CLAUSY_OPEN_PROVIDER_ON_START", raising=False)
     monkeypatch.setattr(server, "browser", _FakeBrowser())
     monkeypatch.setattr(server.app, "run", lambda **_kwargs: calls.append("run"))
 
@@ -39,7 +31,5 @@ def test_main_opens_provider_page_when_requested(monkeypatch):
 
     assert calls == [
         "start",
-        "get_first_page",
-        "goto:https://claude.ai:domcontentloaded",
         "run",
     ]
