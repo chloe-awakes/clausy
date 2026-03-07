@@ -168,6 +168,11 @@ What this means:
 
 Re-running the installer updates the service definition and restarts it cleanly.
 
+### Post-install verification (service + health)
+
+- macOS: `launchctl list | grep com.clausy.gateway ; curl -s http://127.0.0.1:3108/health`
+- Linux: `systemctl --user status clausy --no-pager ; curl -s http://127.0.0.1:3108/health`
+
 Skip service setup when needed (CI/minimal/container environments):
 
 ```bash
