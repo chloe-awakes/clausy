@@ -30,6 +30,12 @@ def test_install_sh_supports_forwarding_docker_flag():
     assert 'OPENCLAW_ARGS+=("--docker")' in content
 
 
+def test_install_sh_reports_consistent_openclaw_base_url_for_docker_and_non_docker():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'SELECTED_BASE_URL="http://127.0.0.1:3108/v1"' in content
+    assert '5000/v1' not in content
+
+
 def test_install_sh_supports_forwarding_dry_run_flag():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert '--dry-run' in content

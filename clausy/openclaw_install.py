@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Tuple
 
 DEFAULT_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 DEFAULT_BASE_URL = "http://127.0.0.1:3108/v1"
-DOCKER_BASE_URL = "http://127.0.0.1:5000/v1"
+DOCKER_BASE_URL = DEFAULT_BASE_URL  # compatibility alias; host-facing default stays 3108
 DEFAULT_MODEL_ID = "chatgpt-web"
 
 
@@ -125,12 +125,18 @@ def main() -> int:
     ap.add_argument(
         "--base-url",
         default=None,
-        help=f"Clausy OpenAI base URL override (default local: {DEFAULT_BASE_URL}; docker: {DOCKER_BASE_URL})",
+        help=(
+            f"Clausy OpenAI base URL override (default: {DEFAULT_BASE_URL}; "
+            "same default for normal and --docker mode)"
+        ),
     )
     ap.add_argument(
         "--docker",
         action="store_true",
-        help="Use Docker Clausy base URL (http://127.0.0.1:5000/v1) unless --base-url is set",
+        help=(
+            "Enable Docker install mode (compatibility flag). "
+            "OpenClaw base URL remains http://127.0.0.1:3108/v1 unless --base-url is set"
+        ),
     )
     ap.add_argument(
         "--model",
@@ -146,7 +152,7 @@ def main() -> int:
         print(f"ERROR: config not found: {path}", file=sys.stderr)
         return 2
 
-    effective_base_url = args.base_url if args.base_url else (DOCKER_BASE_URL if args.docker else DEFAULT_BASE_URL)
+    effective_base_url = args.base_url if args.base_url else DEFAULT_BASE_URL
 
     cfg = _load_json(path)
     old_primary, new_primary = _install(cfg, effective_base_url, args.model, args.provider)

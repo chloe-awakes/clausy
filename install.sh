@@ -86,11 +86,7 @@ else
   echo "Skipping service setup and continuing install success." >&2
 fi
 
-if [[ "${DOCKER_MODE}" -eq 1 ]]; then
-  SELECTED_BASE_URL="http://127.0.0.1:5000/v1"
-else
-  SELECTED_BASE_URL="http://127.0.0.1:3108/v1"
-fi
+SELECTED_BASE_URL="http://127.0.0.1:3108/v1"
 
 echo
 echo "Clausy install complete."

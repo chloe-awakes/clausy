@@ -43,7 +43,7 @@ def test_cli_default_uses_3108(monkeypatch, tmp_path):
     assert _read_provider_base_url(cfg_path) == "http://127.0.0.1:3108/v1"
 
 
-def test_cli_docker_uses_5000(monkeypatch, tmp_path):
+def test_cli_docker_still_uses_3108_by_default(monkeypatch, tmp_path):
     cfg_path = tmp_path / "openclaw.json"
     _write_config(cfg_path)
 
@@ -55,7 +55,7 @@ def test_cli_docker_uses_5000(monkeypatch, tmp_path):
     rc = openclaw_install.main()
 
     assert rc == 0
-    assert _read_provider_base_url(cfg_path) == "http://127.0.0.1:5000/v1"
+    assert _read_provider_base_url(cfg_path) == "http://127.0.0.1:3108/v1"
 
 
 def test_cli_explicit_base_url_overrides_docker(monkeypatch, tmp_path):

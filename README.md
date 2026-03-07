@@ -151,7 +151,7 @@ One-line bootstrap (recommended):
 curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash
 ```
 
-Docker-mode OpenClaw wiring (provider base URL `5000` instead of local `3108`):
+Docker-mode install (keeps OpenClaw provider base URL on `3108`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --docker
@@ -160,8 +160,8 @@ curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh
 What this means:
 
 - local/native Clausy (`python -m clausy`) listens on `127.0.0.1:3108`
-- Docker/Compose deployments usually expose Clausy on `127.0.0.1:5000`
-- the installer auto-wires OpenClaw to the right base URL for the chosen mode
+- Docker/Compose deployments should publish container port `5000` to host port `3108` (for example `-p 3108:5000`)
+- the installer always wires OpenClaw to `http://127.0.0.1:3108/v1` unless `--base-url` is explicitly set
 - the installer also configures and auto-starts a per-user background service by default:
   - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
   - Linux: `~/.config/systemd/user/clausy.service`
@@ -274,7 +274,7 @@ Then run Clausy container pointing to host CDP:
 
 ```bash
 docker build -t clausy .
-docker run --rm -p 5000:5000 \
+docker run --rm -p 3108:5000 \
   --add-host=host.docker.internal:host-gateway \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
@@ -310,7 +310,7 @@ Operational details: `docs/runbook-browser-runtime.md`.
 
 ## Quick test
 
-Non-streaming (local default port 3108; use 5000 if running via Docker/Compose):
+Non-streaming (host endpoint defaults to port 3108 for both local and Docker-mapped setups):
 
 ```bash
 curl http://127.0.0.1:3108/v1/chat/completions   -H 'Content-Type: application/json'   -H 'X-Clausy-Session: demo'   -d '{
@@ -554,8 +554,8 @@ python scripts/openclaw_install_clausy.py
 This will:
 
 - add a `clausy` provider (default base URL `http://127.0.0.1:3108/v1`)
-- use Docker mode (`http://127.0.0.1:5000/v1`) when passed `--docker`
-- allow explicit override with `--base-url` (takes precedence over mode defaults)
+- keep default base URL `http://127.0.0.1:3108/v1` in both normal and `--docker` mode
+- allow explicit override with `--base-url` (takes precedence over defaults)
 - register provider config using current OpenClaw schema (`models.providers.clausy.baseUrl` + `models[]`)
 - set default primary to `agents.defaults.model.primary = "local/clausy"`
 - keep existing config and create a timestamped backup before writing
@@ -566,7 +566,7 @@ Examples:
 # local/default (wires OpenClaw to http://127.0.0.1:3108/v1)
 clausy-openclaw-install
 
-# docker mode (wires OpenClaw to http://127.0.0.1:5000/v1)
+# docker mode (compatibility flag; still wires OpenClaw to http://127.0.0.1:3108/v1)
 clausy-openclaw-install --docker
 
 # explicit custom URL (overrides both defaults)
