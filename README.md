@@ -175,6 +175,7 @@ What this means:
 - in non-interactive mode (e.g. curl pipes, CI), prompts are skipped, shim setup is best-effort only (no sudo/prompt hang), and defaults stay unchanged
 - on first local interactive install, the installer opens the selected provider URL inside the Clausy-managed Playwright/Chrome instance via managed navigation (`page.goto`) so you can log in once; this is one-time and then skipped on later reinstalls
 - strict policy: provider navigation in this first-run flow is managed-browser only (no OS URL-opener fallback path)
+- after install/setup steps, installer now verifies `http://127.0.0.1:3108/health` (configurable via `CLAUSY_HEALTH_ENDPOINT`); if down, it performs one bounded auto-repair cycle (`clausy stop`, `clausy start`, retry health), then prints either explicit runtime-health success (pid/port/endpoint) or exact next commands
 
 Re-running the installer updates the service definition and restarts it cleanly.
 

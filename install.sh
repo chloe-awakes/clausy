@@ -28,6 +28,12 @@ SHIM_CANDIDATE_PATHS=(
   "${HOME}/.local/bin"
 )
 
+HEALTH_ENDPOINT="${CLAUSY_HEALTH_ENDPOINT:-http://127.0.0.1:3108/health}"
+HEALTH_RETRY_ATTEMPTS="${CLAUSY_HEALTH_RETRY_ATTEMPTS:-8}"
+HEALTH_RETRY_DELAY_SECONDS="${CLAUSY_HEALTH_RETRY_DELAY_SECONDS:-1}"
+HEALTHCHECK_CONNECT_TIMEOUT_SECONDS="${CLAUSY_HEALTHCHECK_CONNECT_TIMEOUT_SECONDS:-1.5}"
+HEALTHCHECK_READ_TIMEOUT_SECONDS="${CLAUSY_HEALTHCHECK_READ_TIMEOUT_SECONDS:-2.5}"
+
 TTY_PROMPT_FD=""
 
 init_prompt_fd() {
@@ -151,6 +157,56 @@ try_create_global_shim() {
     fi
   done
 
+  return 1
+}
+
+check_health_endpoint_once() {
+  local endpoint="$1"
+  local connect_timeout_seconds="$2"
+  local read_timeout_seconds="$3"
+  "${VENV_PY}" - "$endpoint" "$connect_timeout_seconds" "$read_timeout_seconds" <<'PY'
+import json
+import socket
+import sys
+import urllib.error
+import urllib.request
+
+endpoint = sys.argv[1]
+connect_timeout = float(sys.argv[2])
+read_timeout = float(sys.argv[3])
+timeout = connect_timeout + read_timeout
+
+try:
+  req = urllib.request.Request(endpoint, headers={"Accept": "application/json"})
+  with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
+    if resp.status != 200:
+      sys.exit(1)
+    payload = json.loads(resp.read().decode('utf-8', errors='replace') or '{}')
+    if isinstance(payload, dict) and bool(payload.get('ok')):
+      sys.exit(0)
+except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, TimeoutError, ValueError, json.JSONDecodeError):
+  pass
+
+sys.exit(1)
+PY
+}
+
+run_health_check_with_retries() {
+  local endpoint="$1"
+  local attempts="$2"
+  local delay_seconds="$3"
+  local connect_timeout_seconds="$4"
+  local read_timeout_seconds="$5"
+  local i=""
+
+  for ((i = 1; i <= attempts; i++)); do
+    if check_health_endpoint_once "$endpoint" "$connect_timeout_seconds" "$read_timeout_seconds"; then
+      return 0
+    fi
+    if (( i < attempts )); then
+      sleep "$delay_seconds"
+    fi
+  done
   return 1
 }
 
@@ -300,6 +356,31 @@ if is_interactive && [[ "${SHIM_ON_PATH}" -eq 0 ]]; then
   fi
 fi
 
+CLAUSY_RUNNER=("${VENV_BIN_PATH}/clausy")
+if [[ ! -x "${CLAUSY_RUNNER[0]}" ]]; then
+  CLAUSY_RUNNER=("${VENV_PY}" "-m" "clausy")
+fi
+CLAUSY_COMMAND_DISPLAY="${CLAUSY_RUNNER[*]}"
+
+RUNTIME_HEALTH_OK=0
+RUNTIME_HEALTH_STATUS_LINE=""
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "Skipping runtime health check in --dry-run mode."
+else
+  if run_health_check_with_retries "${HEALTH_ENDPOINT}" "${HEALTH_RETRY_ATTEMPTS}" "${HEALTH_RETRY_DELAY_SECONDS}" "${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}" "${HEALTHCHECK_READ_TIMEOUT_SECONDS}"; then
+    RUNTIME_HEALTH_OK=1
+  else
+    echo "Auto-repair: restarting Clausy-managed runtime once."
+    "${CLAUSY_RUNNER[@]}" stop >/dev/null 2>&1 || true
+    "${CLAUSY_RUNNER[@]}" start >/dev/null 2>&1 || true
+    if run_health_check_with_retries "${HEALTH_ENDPOINT}" "${HEALTH_RETRY_ATTEMPTS}" "${HEALTH_RETRY_DELAY_SECONDS}" "${HEALTHCHECK_CONNECT_TIMEOUT_SECONDS}" "${HEALTHCHECK_READ_TIMEOUT_SECONDS}"; then
+      RUNTIME_HEALTH_OK=1
+    fi
+  fi
+
+  RUNTIME_HEALTH_STATUS_LINE="$("${CLAUSY_RUNNER[@]}" status 2>/dev/null || true)"
+fi
+
 if [[ "${TTY_PROMPT_FD}" == "3" ]]; then
   exec 3<&-
 fi
@@ -328,6 +409,29 @@ if [[ "${PATH_PERSISTED}" -eq 0 ]]; then
   if is_interactive && [[ "${PATH_PERSISTED}" -eq 0 ]]; then
     echo "Run Clausy now without editing PATH:"
     echo "  ${VENV_BIN_PATH}/clausy"
+  fi
+  echo
+fi
+
+if [[ "${DRY_RUN}" -eq 0 ]]; then
+  runtime_pid="-"
+  runtime_port="3108"
+  if [[ "${RUNTIME_HEALTH_STATUS_LINE}" =~ pid=([^[:space:]]+) ]]; then
+    runtime_pid="${BASH_REMATCH[1]}"
+  fi
+  if [[ "${RUNTIME_HEALTH_STATUS_LINE}" =~ port=([^[:space:]]+) ]]; then
+    runtime_port="${BASH_REMATCH[1]}"
+  fi
+
+  if [[ "${RUNTIME_HEALTH_OK}" -eq 1 ]]; then
+    echo "Clausy runtime health: ok (pid=${runtime_pid} port=${runtime_port} endpoint=${HEALTH_ENDPOINT})"
+  else
+    echo "WARNING: Clausy runtime health check still failing after auto-repair."
+    echo "Endpoint checked: ${HEALTH_ENDPOINT}"
+    echo "Next steps:"
+    echo "  ${CLAUSY_COMMAND_DISPLAY} stop"
+    echo "  ${CLAUSY_COMMAND_DISPLAY} start"
+    echo "  ${CLAUSY_COMMAND_DISPLAY} status"
   fi
   echo
 fi

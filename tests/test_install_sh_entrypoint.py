@@ -116,6 +116,25 @@ def test_install_sh_prints_post_install_command_help_block():
     assert 'clausy chrome = starts chrome with clausy' in content
 
 
+def test_install_sh_runs_post_install_health_verification_with_auto_repair():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'HEALTH_ENDPOINT="${CLAUSY_HEALTH_ENDPOINT:-http://127.0.0.1:3108/health}"' in content
+    assert 'run_health_check_with_retries' in content
+    assert 'Auto-repair: restarting Clausy-managed runtime once.' in content
+    assert '"${CLAUSY_RUNNER[@]}" stop' in content
+    assert '"${CLAUSY_RUNNER[@]}" start' in content
+
+
+def test_install_sh_prints_explicit_runtime_health_success_or_warning_with_next_steps():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'Clausy runtime health: ok' in content
+    assert 'WARNING: Clausy runtime health check still failing after auto-repair.' in content
+    assert 'Next steps:' in content
+    assert 'echo "  ${CLAUSY_COMMAND_DISPLAY} stop"' in content
+    assert 'echo "  ${CLAUSY_COMMAND_DISPLAY} start"' in content
+    assert 'echo "  ${CLAUSY_COMMAND_DISPLAY} status"' in content
+
+
 def test_install_sh_attempts_global_clausy_shim_creation_with_path_fallbacks():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'SHIM_CANDIDATE_PATHS=(' in content
