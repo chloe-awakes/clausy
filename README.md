@@ -270,11 +270,10 @@ open -na "Google Chrome" --args \
   --disable-session-crashed-bubble
 ```
 
-Then run Clausy container pointing to host CDP:
+Then build and run the Clausy container (single command) pointing to host CDP:
 
 ```bash
-docker build -t clausy .
-docker run --rm -p 3108:5000 \
+docker build -t clausy . && docker run --rm -p 3108:5000 \
   --add-host=host.docker.internal:host-gateway \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
@@ -285,6 +284,8 @@ docker run --rm -p 3108:5000 \
   -v "$(pwd)/profile:/app/profile" \
   clausy
 ```
+
+`CLAUSY_CHROME_NO_SANDBOX=1` is now baked into the Docker image by default, so no runtime `-e CLAUSY_CHROME_NO_SANDBOX=1` flag is needed for container runs.
 
 Notes:
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` is an optional best-effort command executed by container startup before probing CDP.
@@ -362,7 +363,7 @@ Environment variables:
 - `CLAUSY_BROWSER_ARGS` (optional extra browser args, space-separated)
 - `CLAUSY_CDP_CONNECT_TIMEOUT` (seconds, default `20`; valid range `0.1..300`, invalid values fall back to default)
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
-- `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, default `0`)
+- `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, app default `0`; Docker image sets `1` by default)
 - `CLAUSY_HEADLESS` (`0|1`, default `0`)
 - `CLAUSY_SESSION_HEADER` (default `X-Clausy-Session`)
 - `CLAUSY_MAX_REPAIRS` (default `2`)
