@@ -11,6 +11,10 @@ MARK_TOOLS = "<<<TOOLS>>>"
 
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*([\s\S]*?)\s*```", re.IGNORECASE)
 
+_EMPTY_PROVIDER_SENTINELS = {
+    "[no response found]",
+}
+
 def output_mode_header() -> str:
     # Internal protocol between Clausy and the web backend (NOT the external OpenAI API).
     return (
@@ -40,6 +44,13 @@ def _extract_json_candidate(text: str) -> Optional[str]:
 
 def _normalize_text(text: str) -> str:
     return (text or "").lstrip()
+
+
+def is_empty_provider_response(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return True
+    return stripped.lower() in _EMPTY_PROVIDER_SENTINELS
 
 def detect_mode(text: str) -> Optional[str]:
     t = _normalize_text(text)
@@ -141,6 +152,9 @@ def parse_or_repair_output(
     model_name_for_fallback: str,
     max_repairs: int = 2,
 ) -> Dict[str, Any]:
+    if is_empty_provider_response(raw_text):
+        return build_chat_completion_content("", model_name_for_fallback)
+
     def try_parse(text: str) -> Tuple[Optional[Dict[str, Any]], str, Optional[str]]:
         mode = detect_mode(text)
         if mode is None:

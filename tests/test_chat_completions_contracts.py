@@ -81,6 +81,28 @@ def test_non_stream_chat_completion_contract(configure_server):
 
 
 @pytest.mark.contract
+def test_non_stream_no_response_returns_provider_unavailable_without_repair_prompt(configure_server):
+    provider = FakeProvider(non_stream_reply="[No response found]")
+    client = configure_server(provider_name="chatgpt", providers={"chatgpt": provider})
+
+    resp = _post_chat(
+        client,
+        {
+            "model": "chatgpt-web",
+            "stream": False,
+            "messages": [{"role": "user", "content": "say hi"}],
+        },
+    )
+
+    body = resp.get_json()
+    assert resp.status_code == 502
+    assert body["error"]["type"] == "provider_unavailable_error"
+    assert len(provider.sent_prompts) == 1
+    assert "<<<OUTPUT_RULES>>>" in provider.sent_prompts[0]
+    assert "You returned INVALID output. Fix it." not in provider.sent_prompts[0]
+
+
+@pytest.mark.contract
 def test_stream_sse_contract_includes_done(configure_server):
     provider = FakeProvider(stream_steps=["<<<CONTENT>>>\nstreamed", "<<<CONTENT>>>\nstreamed hello"])
     client = configure_server(provider_name="chatgpt", providers={"chatgpt": provider})

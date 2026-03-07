@@ -15,7 +15,7 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from .browser import BrowserPool, _is_safe_profile_path
 from .providers import ProviderRegistry
 from .api_providers import APIProviderRouter, APIProviderError, is_api_provider
-from .output_mode import output_mode_header, parse_or_repair_output, detect_mode, strip_marker
+from .output_mode import output_mode_header, parse_or_repair_output, detect_mode, strip_marker, is_empty_provider_response
 from .filter import (
     SecretFilter,
     load_filter_config_from_env,
@@ -1224,6 +1224,8 @@ def chat_completions():
                     cand_provider.send_prompt(cand_page, prompt)
                     cand_provider.wait_done(cand_page)
                     raw_reply = cand_provider.get_last_assistant_text(cand_page)
+                if is_empty_provider_response(raw_reply):
+                    raise RuntimeError("Provider returned no response")
                 provider = cand_provider
                 page = cand_page
                 parsed = parse_or_repair_output(
