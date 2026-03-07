@@ -10,10 +10,9 @@ def _write_config(path: Path) -> None:
         json.dumps(
             {
                 "models": {
-                    "default": {"provider": "openai", "model": "gpt-4o"},
                     "providers": {},
-                    "aliases": {},
-                }
+                },
+                "agents": {"defaults": {"model": {"primary": "openai/gpt-4o"}}},
             }
         ),
         encoding="utf-8",
@@ -22,7 +21,7 @@ def _write_config(path: Path) -> None:
 
 def _read_provider_base_url(path: Path) -> str:
     cfg = json.loads(path.read_text(encoding="utf-8"))
-    return cfg["models"]["providers"]["clausy"]["baseURL"]
+    return cfg["models"]["providers"]["clausy"]["baseUrl"]
 
 
 def test_default_base_url_constant_is_3108():

@@ -8,7 +8,7 @@ import os
 import shutil
 import sys
 from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 DEFAULT_CONFIG = os.path.expanduser("~/.openclaw/openclaw.json")
 DEFAULT_BASE_URL = "http://127.0.0.1:3108/v1"
@@ -42,50 +42,6 @@ def _ensure_dict(root: Dict[str, Any], key: str) -> Dict[str, Any]:
     return root[key]
 
 
-def _unique_alias_name(aliases: Dict[str, Any], base: str = "previous-primary") -> str:
-    if base not in aliases:
-        return base
-    i = 2
-    while f"{base}-{i}" in aliases:
-        i += 1
-    return f"{base}-{i}"
-
-
-def _detect_primary(cfg: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], str]:
-    """Try to detect where OpenClaw stores the 'primary/default' model."""
-    models = cfg.get("models")
-    if isinstance(models, dict):
-        d = models.get("default")
-        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
-            return d, "models.default"
-
-        d = models.get("primary")
-        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
-            return d, "models.primary"
-
-        did = models.get("defaultModel") or models.get("primaryModel")
-        if isinstance(did, str) and did.strip():
-            return {"id": did.strip()}, "models.defaultModel"
-
-    llm = cfg.get("llm")
-    if isinstance(llm, dict):
-        d = llm.get("default") or llm.get("primary")
-        if isinstance(d, dict) and (d.get("provider") or d.get("model") or d.get("id")):
-            return d, "llm.default/primary"
-        did = llm.get("defaultModel") or llm.get("primaryModel")
-        if isinstance(did, str) and did.strip():
-            return {"id": did.strip()}, "llm.defaultModel"
-
-    for k in ("default_model", "defaultModel", "primary_model", "primaryModel"):
-        v = cfg.get(k)
-        if isinstance(v, str) and v.strip():
-            return {"id": v.strip()}, k
-        if isinstance(v, dict) and (v.get("provider") or v.get("model") or v.get("id")):
-            return v, k
-
-    return None, ""
-
-
 def _install(
     cfg: Dict[str, Any],
     base_url: str,
@@ -93,29 +49,42 @@ def _install(
     provider_name: str = "clausy",
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Mutate cfg: add provider and set primary/default. Returns (old_primary, new_primary)."""
-    old_primary, _loc = _detect_primary(cfg)
+    agents = _ensure_dict(cfg, "agents")
+    defaults = _ensure_dict(agents, "defaults")
+    model_defaults = _ensure_dict(defaults, "model")
+
+    previous_primary = model_defaults.get("primary")
 
     models = _ensure_dict(cfg, "models")
     providers = _ensure_dict(models, "providers")
-    aliases = _ensure_dict(models, "aliases")
+    provider = providers.get(provider_name)
+    if not isinstance(provider, dict):
+        provider = {}
 
-    if old_primary:
-        old_provider = old_primary.get("provider") if isinstance(old_primary, dict) else None
-        old_id = old_primary.get("id") if isinstance(old_primary, dict) else None
-        if old_provider != provider_name and old_id != provider_name:
-            alias_name = _unique_alias_name(aliases, "previous-primary")
-            aliases[alias_name] = old_primary
+    existing_models = provider.get("models")
+    if isinstance(existing_models, list):
+        model_ids = [m for m in existing_models if isinstance(m, str) and m.strip()]
+    else:
+        model_ids = []
 
-    providers[provider_name] = {
-        "type": "openai",
-        "baseURL": base_url,
-        "apiKey": "clausy",
-    }
+    if model_id not in model_ids:
+        model_ids.append(model_id)
 
-    new_primary = {"provider": provider_name, "model": model_id}
-    models["default"] = new_primary
+    provider.update(
+        {
+            "baseUrl": base_url,
+            "models": model_ids,
+        }
+    )
+    provider.pop("type", None)
+    provider.pop("baseURL", None)
 
-    return old_primary or {}, new_primary
+    providers[provider_name] = provider
+
+    primary_ref = f"local/{provider_name}"
+    model_defaults["primary"] = primary_ref
+
+    return ({"primary": previous_primary} if previous_primary else {}), {"primary": primary_ref}
 
 
 def main() -> int:
@@ -138,7 +107,7 @@ def main() -> int:
     ap.add_argument(
         "--model",
         default=DEFAULT_MODEL_ID,
-        help="Model id to set as default (default: chatgpt-web)",
+        help="Model id to register in provider model list (default: chatgpt-web)",
     )
     ap.add_argument("--provider", default="clausy", help="Provider name to register (default: clausy)")
     ap.add_argument("--dry-run", action="store_true", help="Print the updated config without writing")
@@ -164,8 +133,8 @@ def main() -> int:
     print(f"Updated: {path}")
     print(f"Backup:  {backup}")
     if old_primary:
-        print("Previous primary saved under: models.aliases['previous-primary*']")
-    print(f"New primary: provider='{new_primary['provider']}' model='{new_primary['model']}'")
+        print("Previous primary preserved under existing config keys")
+    print(f"New primary: {new_primary['primary']}")
     return 0
 
 

@@ -556,8 +556,9 @@ This will:
 - add a `clausy` provider (default base URL `http://127.0.0.1:3108/v1`)
 - use Docker mode (`http://127.0.0.1:5000/v1`) when passed `--docker`
 - allow explicit override with `--base-url` (takes precedence over mode defaults)
-- set it as the default/primary model
-- keep all existing config and save the previous primary under `models.aliases["previous-primary*"]`
+- register provider config using current OpenClaw schema (`models.providers.clausy.baseUrl` + `models[]`)
+- set default primary to `agents.defaults.model.primary = "local/clausy"`
+- keep existing config and create a timestamped backup before writing
 
 Examples:
 
