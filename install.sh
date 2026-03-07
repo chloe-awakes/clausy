@@ -18,8 +18,42 @@ DRY_RUN=0
 NO_SERVICE=0
 NO_BROWSER=0
 
+TTY_PROMPT_FD=""
+
+init_prompt_fd() {
+  if [[ -t 0 ]]; then
+    TTY_PROMPT_FD="0"
+    return 0
+  fi
+  if [[ -r /dev/tty ]]; then
+    exec 3</dev/tty
+    TTY_PROMPT_FD="3"
+    return 0
+  fi
+  TTY_PROMPT_FD=""
+  return 1
+}
+
 is_interactive() {
-  [[ -t 0 && -t 1 ]]
+  [[ -n "${TTY_PROMPT_FD}" && -t 1 ]]
+}
+
+prompt_read() {
+  local __var_name="$1"
+  local __prompt="$2"
+  local __value=""
+  if [[ -z "${TTY_PROMPT_FD}" ]]; then
+    printf -v "${__var_name}" '%s' ""
+    return 1
+  fi
+
+  if [[ "${TTY_PROMPT_FD}" == "0" ]]; then
+    read -r -p "${__prompt}" __value || true
+  else
+    read -r -u "${TTY_PROMPT_FD}" -p "${__prompt}" __value || true
+  fi
+  printf -v "${__var_name}" '%s' "${__value}"
+  return 0
 }
 
 is_yes() {
@@ -95,6 +129,8 @@ while (($#)); do
   esac
 done
 
+init_prompt_fd || true
+
 if [[ ! -d "${VENV_DIR}" ]]; then
   "${PYTHON_BIN}" -m venv "${VENV_DIR}"
 fi
@@ -110,9 +146,9 @@ else
   "${VENV_PY}" -m pip install --upgrade --force-reinstall "${GIT_PACKAGE_URL}"
 fi
 
+provider_choice="chatgpt"
 if is_interactive; then
-  provider_choice="chatgpt"
-  read -r -p "Select provider [chatgpt/claude/grok/gemini_web/perplexity/poe/deepseek/openai/anthropic/ollama/gemini/openrouter] (default: chatgpt): " provider_input || true
+  prompt_read provider_input "Select provider [chatgpt/claude/grok/gemini_web/perplexity/poe/deepseek/openai/anthropic/ollama/gemini/openrouter] (default: chatgpt): " || true
   if [[ -n "${provider_input:-}" ]]; then
     provider_choice="${provider_input}"
   fi
@@ -153,13 +189,13 @@ else
 fi
 
 if is_interactive && [[ "${NO_BROWSER}" -eq 0 ]]; then
-  read -r -p "Install Chromium fallback now? [Y/n] " chromium_input || true
+  prompt_read chromium_input "Install Chromium fallback now? [Y/n] " || true
   if is_yes "${chromium_input:-}"; then
     "${VENV_PY}" -m playwright install chromium || true
   fi
 fi
 
-BROWSER_ARGS=("--venv-python" "${VENV_PY}")
+BROWSER_ARGS=("--venv-python" "${VENV_PY}" "--provider" "${provider_choice}")
 if [[ "${DOCKER_MODE}" -eq 1 ]]; then
   BROWSER_ARGS+=("--docker")
 fi
@@ -175,11 +211,15 @@ if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.fin
 fi
 
 if is_interactive; then
-  read -r -p "Add Clausy to PATH in shell rc? [y/N] " add_path_input || true
+  prompt_read add_path_input "Add Clausy to PATH in shell rc? [y/N] " || true
   add_path_normalized="$(printf '%s' "${add_path_input:-}" | tr '[:upper:]' '[:lower:]')"
   if [[ "${add_path_normalized}" == "y" || "${add_path_normalized}" == "yes" ]]; then
     append_path_to_shell_rc "${VENV_BIN_PATH}" || true
   fi
+fi
+
+if [[ "${TTY_PROMPT_FD}" == "3" ]]; then
+  exec 3<&-
 fi
 
 SELECTED_BASE_URL="http://127.0.0.1:3108/v1"
@@ -190,7 +230,6 @@ echo "OpenClaw provider configured for: ${SELECTED_BASE_URL}"
 echo "A backup of ~/.openclaw/openclaw.json is created before non-dry-run writes."
 echo
 echo "Quick commands:"
-echo "  clausy      # status/help"
-echo "  clausy start"
-echo "  clausy stop"
-echo "  clausy chrome"
+echo "  clausy = status and help"
+echo "  clausy start/stop"
+echo "  clausy chrome = starts chrome with clausy"

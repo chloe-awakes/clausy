@@ -13,6 +13,20 @@ from typing import Mapping, Sequence
 DEFAULT_MARKER_PATH = Path.home() / ".openclaw" / ".clausy-browser-first-run.done"
 _BOOTSTRAP_WAIT_SECONDS = 6.0
 _BOOTSTRAP_PORT = "3110"
+_PROVIDER_URLS: dict[str, str] = {
+    "chatgpt": "https://chatgpt.com",
+    "claude": "https://claude.ai",
+    "grok": "https://grok.com",
+    "gemini_web": "https://gemini.google.com",
+    "perplexity": "https://www.perplexity.ai",
+    "poe": "https://poe.com",
+    "deepseek": "https://chat.deepseek.com",
+    "openai": "https://platform.openai.com",
+    "anthropic": "https://console.anthropic.com",
+    "ollama": "http://127.0.0.1:11434",
+    "gemini": "https://aistudio.google.com",
+    "openrouter": "https://openrouter.ai",
+}
 
 
 def has_gui_environment() -> bool:
@@ -56,6 +70,29 @@ def build_chrome_launch_command(venv_python: str) -> list[str]:
     return [venv_python, "-m", "clausy", "chrome"]
 
 
+def provider_url(provider_name: str | None) -> str:
+    key = (provider_name or "chatgpt").strip().lower()
+    return _PROVIDER_URLS.get(key, _PROVIDER_URLS["chatgpt"])
+
+
+def build_provider_open_command(url: str, *, platform: str | None = None) -> list[str]:
+    os_name = os.name if platform is None else platform
+    if os_name == "nt":
+        return ["cmd", "/c", "start", "", url]
+    if os.uname().sysname == "Darwin":
+        return ["open", url]
+    return ["xdg-open", url]
+
+
+def open_provider_page(url: str) -> bool:
+    command = build_provider_open_command(url)
+    try:
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except Exception:
+        return False
+    return True
+
+
 def build_chrome_launch_env(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
     env = dict(base_env or os.environ)
     env["CLAUSY_BROWSER_BOOTSTRAP"] = "always"
@@ -92,6 +129,7 @@ def _launch_and_detach_chrome_bootstrap(
 def maybe_auto_open_browser(
     *,
     venv_python: str,
+    provider: str = "chatgpt",
     marker_path: Path = DEFAULT_MARKER_PATH,
     no_browser: bool = False,
     docker_mode: bool = False,
@@ -118,14 +156,18 @@ def maybe_auto_open_browser(
     command = build_chrome_launch_command(venv_python)
     env = build_chrome_launch_env()
     launched = _launch_and_detach_chrome_bootstrap(command, env)
-    if launched:
-        mark_first_run_complete(marker_path)
-    return launched
+    if not launched:
+        return False
+
+    open_provider_page(provider_url(provider))
+    mark_first_run_complete(marker_path)
+    return True
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Auto-open visible Chrome once after install")
     parser.add_argument("--venv-python", required=True, help="Path to virtualenv python executable")
+    parser.add_argument("--provider", default="chatgpt", help="Selected provider name")
     parser.add_argument("--marker-path", default=str(DEFAULT_MARKER_PATH), help="First-run marker file")
     parser.add_argument("--docker", action="store_true", help="Skip browser auto-open in Docker mode")
     parser.add_argument("--dry-run", action="store_true", help="Do not launch browser")
@@ -134,6 +176,7 @@ def main() -> int:
 
     launched = maybe_auto_open_browser(
         venv_python=args.venv_python,
+        provider=args.provider,
         marker_path=Path(args.marker_path),
         no_browser=args.no_browser,
         docker_mode=args.docker,
