@@ -43,7 +43,7 @@ def _ensure_dict(root: Dict[str, Any], key: str) -> Dict[str, Any]:
 
 
 def _normalize_provider_models(raw_models: Any) -> List[Dict[str, Any]]:
-    """Normalize provider models to schema-compatible list[object]."""
+    """Normalize provider models to schema-compatible list[object] with id+name."""
     normalized: List[Dict[str, Any]] = []
     if not isinstance(raw_models, list):
         return normalized
@@ -52,14 +52,20 @@ def _normalize_provider_models(raw_models: Any) -> List[Dict[str, Any]]:
         if isinstance(item, str):
             model_id = item.strip()
             if model_id:
-                normalized.append({"id": model_id})
+                normalized.append({"id": model_id, "name": model_id})
             continue
 
         if isinstance(item, dict):
             model_id = item.get("id")
             if isinstance(model_id, str) and model_id.strip():
+                clean_id = model_id.strip()
                 model_obj = dict(item)
-                model_obj["id"] = model_id.strip()
+                model_obj["id"] = clean_id
+                model_name = model_obj.get("name")
+                if not isinstance(model_name, str) or not model_name.strip():
+                    model_obj["name"] = clean_id
+                else:
+                    model_obj["name"] = model_name.strip()
                 normalized.append(model_obj)
 
     return normalized
@@ -90,7 +96,7 @@ def _install(
     normalized_models = _normalize_provider_models(provider.get("models"))
     existing_ids = {m["id"] for m in normalized_models}
     if model_id not in existing_ids:
-        normalized_models.append({"id": model_id})
+        normalized_models.append({"id": model_id, "name": model_id})
 
     provider.update(
         {

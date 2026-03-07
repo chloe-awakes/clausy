@@ -36,7 +36,7 @@ def test_installer_writes_current_provider_schema_and_primary(monkeypatch, tmp_p
     clausy = cfg["models"]["providers"]["clausy"]
 
     assert clausy["baseUrl"] == "http://127.0.0.1:3108/v1"
-    assert clausy["models"] == [{"id": "chatgpt-web"}]
+    assert clausy["models"] == [{"id": "chatgpt-web", "name": "chatgpt-web"}]
     assert "type" not in clausy
     assert "baseURL" not in clausy
 
@@ -96,9 +96,42 @@ def test_installer_migrates_legacy_contaminated_config(monkeypatch, tmp_path):
     assert "type" not in clausy
 
     assert clausy["models"] == [
-        {"id": "chatgpt-web"},
-        {"id": "existing-object", "label": "Existing"},
-        {"id": "new-model"},
+        {"id": "chatgpt-web", "name": "chatgpt-web"},
+        {"id": "existing-object", "label": "Existing", "name": "existing-object"},
+        {"id": "new-model", "name": "new-model"},
     ]
 
     assert cfg["agents"]["defaults"]["model"]["primary"] == "local/clausy"
+
+
+def test_installer_fills_missing_model_name_for_id_only_objects(monkeypatch, tmp_path):
+    cfg_path = tmp_path / "openclaw.json"
+    cfg_path.write_text(
+        json.dumps(
+            {
+                "models": {
+                    "providers": {
+                        "clausy": {
+                            "baseUrl": "http://127.0.0.1:3108/v1",
+                            "models": [{"id": "id-only"}, {"id": "has-name", "name": "Pretty Name"}],
+                        }
+                    }
+                },
+                "agents": {"defaults": {"model": {"primary": "openai/gpt-4o"}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("sys.argv", ["openclaw_install", "--config", str(cfg_path), "--model", "new-model"])
+    rc = openclaw_install.main()
+
+    assert rc == 0
+
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    clausy_models = cfg["models"]["providers"]["clausy"]["models"]
+    assert clausy_models == [
+        {"id": "id-only", "name": "id-only"},
+        {"id": "has-name", "name": "Pretty Name"},
+        {"id": "new-model", "name": "new-model"},
+    ]
