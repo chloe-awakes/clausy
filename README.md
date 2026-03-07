@@ -162,6 +162,17 @@ What this means:
 - local/native Clausy (`python -m clausy`) listens on `127.0.0.1:3108`
 - Docker/Compose deployments usually expose Clausy on `127.0.0.1:5000`
 - the installer auto-wires OpenClaw to the right base URL for the chosen mode
+- the installer also configures and auto-starts a per-user background service by default:
+  - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
+  - Linux: `~/.config/systemd/user/clausy.service`
+
+Re-running the installer updates the service definition and restarts it cleanly.
+
+Skip service setup when needed (CI/minimal/container environments):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --no-service
+```
 
 Module bootstrap alternative:
 

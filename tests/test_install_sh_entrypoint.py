@@ -21,6 +21,7 @@ def test_install_sh_installs_clausy_and_runs_openclaw_wiring():
     assert ".venv" in content
     assert "-m pip install" in content
     assert "-m clausy.openclaw_install" in content
+    assert "-m clausy.service_install" in content
 
 
 def test_install_sh_supports_forwarding_docker_flag():
@@ -33,6 +34,12 @@ def test_install_sh_supports_forwarding_dry_run_flag():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert '--dry-run' in content
     assert 'OPENCLAW_ARGS+=("--dry-run")' in content
+
+
+def test_install_sh_supports_no_service_flag():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert '--no-service' in content
+    assert 'SERVICE_ARGS+=("--no-service")' in content
 
 
 def test_install_sh_handles_empty_openclaw_args_under_nounset():

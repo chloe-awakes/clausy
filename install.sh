@@ -15,6 +15,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 DOCKER_MODE=0
 DRY_RUN=0
+NO_SERVICE=0
 
 while (($#)); do
   case "$1" in
@@ -26,9 +27,13 @@ while (($#)); do
       DRY_RUN=1
       shift
       ;;
+    --no-service)
+      NO_SERVICE=1
+      shift
+      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: $0 [--docker] [--dry-run]" >&2
+      echo "Usage: $0 [--docker] [--dry-run] [--no-service]" >&2
       exit 2
       ;;
   esac
@@ -60,6 +65,20 @@ if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then
   "${VENV_PY}" -m clausy.openclaw_install "${OPENCLAW_ARGS[@]}"
 else
   "${VENV_PY}" -m clausy.openclaw_install
+fi
+
+SERVICE_ARGS=("--venv-python" "${VENV_PY}" "--repo-root" "${REPO_ROOT}")
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  SERVICE_ARGS+=("--dry-run")
+fi
+if [[ "${NO_SERVICE}" -eq 1 ]]; then
+  SERVICE_ARGS+=("--no-service")
+fi
+
+if [[ ${#SERVICE_ARGS[@]} -gt 0 ]]; then
+  "${VENV_PY}" -m clausy.service_install "${SERVICE_ARGS[@]}"
+else
+  "${VENV_PY}" -m clausy.service_install
 fi
 
 if [[ "${DOCKER_MODE}" -eq 1 ]]; then
