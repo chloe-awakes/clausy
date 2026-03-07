@@ -50,7 +50,7 @@ VENV_PY="${VENV_DIR}/bin/python"
 if [[ -f "${REPO_ROOT}/pyproject.toml" ]]; then
   "${VENV_PY}" -m pip install "${REPO_ROOT}"
 else
-  "${VENV_PY}" -m pip install "${GIT_PACKAGE_URL}"
+  "${VENV_PY}" -m pip install --upgrade --force-reinstall "${GIT_PACKAGE_URL}"
 fi
 
 OPENCLAW_ARGS=()
@@ -75,10 +75,15 @@ if [[ "${NO_SERVICE}" -eq 1 ]]; then
   SERVICE_ARGS+=("--no-service")
 fi
 
-if [[ ${#SERVICE_ARGS[@]} -gt 0 ]]; then
-  "${VENV_PY}" -m clausy.service_install "${SERVICE_ARGS[@]}"
+if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("clausy.service_install") else 1)'; then
+  if [[ ${#SERVICE_ARGS[@]} -gt 0 ]]; then
+    "${VENV_PY}" -m clausy.service_install "${SERVICE_ARGS[@]}"
+  else
+    "${VENV_PY}" -m clausy.service_install
+  fi
 else
-  "${VENV_PY}" -m clausy.service_install
+  echo "WARNING: clausy.service_install is not available in this environment." >&2
+  echo "Skipping service setup and continuing install success." >&2
 fi
 
 if [[ "${DOCKER_MODE}" -eq 1 ]]; then

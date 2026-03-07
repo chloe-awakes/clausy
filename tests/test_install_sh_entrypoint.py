@@ -57,4 +57,11 @@ def test_install_sh_is_safe_when_bash_source_is_unset():
 def test_install_sh_falls_back_to_github_install_when_not_in_repo_checkout():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'GIT_PACKAGE_URL="git+https://github.com/chloe-awakes/clausy.git"' in content
-    assert '"${VENV_PY}" -m pip install "${GIT_PACKAGE_URL}"' in content
+    assert '"${VENV_PY}" -m pip install --upgrade --force-reinstall "${GIT_PACKAGE_URL}"' in content
+
+
+def test_install_sh_guards_service_install_when_module_missing():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'find_spec("clausy.service_install")' in content
+    assert 'WARNING: clausy.service_install is not available in this environment.' in content
+    assert 'Skipping service setup and continuing install success.' in content
