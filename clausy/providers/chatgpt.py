@@ -1,7 +1,9 @@
 from __future__ import annotations
+import re
 import time
 from typing import Iterable
 from .base import WebChatProvider
+
 
 def _delta(prev: str, cur: str) -> str:
     """Return the appended delta assuming cur extends prev; else return cur."""
@@ -13,6 +15,7 @@ def _delta(prev: str, cur: str) -> str:
     while i < m and prev[i] == cur[i]:
         i += 1
     return cur[i:]
+
 
 class ChatGPTWebProvider(WebChatProvider):
     name = "chatgpt"
@@ -32,22 +35,60 @@ class ChatGPTWebProvider(WebChatProvider):
         return None
 
     def _find_composer(self, page):
-        return self._first_locator(page, [
-            "#prompt-textarea",
-            "[data-testid='prompt-textarea']",
-            "div#prompt-textarea",
-            "div[contenteditable='true'][role='textbox']",
-            "div[contenteditable='true']",
-        ])
+        # Accessibility-first, then stable ids/classes, then generic contenteditable fallback.
+        try:
+            textbox = page.get_by_role("textbox")
+            if textbox.count() > 0:
+                return textbox.last
+        except Exception:
+            pass
+
+        return self._first_locator(
+            page,
+            [
+                "#prompt-textarea",
+                "[data-testid='prompt-textarea']",
+                "textarea#prompt-textarea",
+                "textarea[data-testid='prompt-textarea']",
+                "textarea[placeholder*='Message']",
+                "textarea[placeholder*='Nachricht']",
+                "div#prompt-textarea",
+                "div[contenteditable='true'][role='textbox']",
+                "div[contenteditable='true'][aria-label*='Message']",
+                "div[contenteditable='true'][aria-label*='Nachricht']",
+                "div[contenteditable='true']",
+            ],
+        )
 
     def _find_send_button(self, page):
-        return self._first_locator(page, [
-            "button#composer-submit-button",
-            "button[data-testid='send-button']",
-            "button[aria-label*='Send']",
-            "button[aria-label*='Senden']",
-            "button[type='submit']",
-        ])
+        # Prefer explicit button role with translated send/submit names.
+        try:
+            by_name = page.get_by_role("button", name=re.compile(r"(send|submit|senden|abschicken)", re.I))
+            if by_name.count() > 0:
+                for i in range(min(by_name.count(), 8)):
+                    btn = by_name.nth(i)
+                    try:
+                        if btn.is_enabled():
+                            return btn
+                    except Exception:
+                        pass
+                return by_name.first
+        except Exception:
+            pass
+
+        return self._first_locator(
+            page,
+            [
+                "button#composer-submit-button",
+                "button[data-testid='send-button']",
+                "button[aria-label*='Send']",
+                "button[aria-label*='Senden']",
+                "button[type='submit']",
+                "form button:last-child",
+                "button:has-text('Send')",
+                "button:has-text('Senden')",
+            ],
+        )
 
     def _find_new_chat(self, page):
         return self._first_locator(page, [
@@ -68,16 +109,62 @@ class ChatGPTWebProvider(WebChatProvider):
             return False
         return ("Log in" in txt) or ("Sign up" in txt) or ("Anmelden" in txt) or ("Registrieren" in txt)
 
+    def _wait_for_ui_settle(self, page, ms: int = 350) -> None:
+        try:
+            page.wait_for_timeout(ms)
+            return
+        except Exception:
+            pass
+        time.sleep(ms / 1000.0)
+
+    def _is_composer_interactable(self, composer) -> bool:
+        if composer is None:
+            return False
+        try:
+            target = composer.first if hasattr(composer, "first") else composer
+            if hasattr(target, "is_disabled") and target.is_disabled():
+                return False
+        except Exception:
+            pass
+        try:
+            target = composer.first if hasattr(composer, "first") else composer
+            if target.get_attribute("readonly") is not None:
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _can_submit_with_enter(self, page, composer) -> bool:
+        if not self._is_composer_interactable(composer):
+            return False
+
+        # Most ChatGPT-style composers submit on Enter and use Shift+Enter for newline.
+        # If we can detect that hint, treat composer-only as ready.
+        try:
+            body = page.locator("body").inner_text(timeout=500) or ""
+            body_l = body.lower()
+            if ("shift+enter" in body_l and "enter" in body_l) or "press enter" in body_l:
+                return True
+        except Exception:
+            pass
+
+        # Fallback: interactable composer implies Enter submission is usually available.
+        return True
+
     def ensure_ready(self, page) -> None:
         if not (page.url or "").startswith(self.url):
             page.goto(self.url, wait_until="domcontentloaded")
 
         saw_login_screen = False
-        for _ in range(3):
+        attempts = 4
+        for attempt in range(attempts):
+            self._wait_for_ui_settle(page, ms=350 if attempt == 0 else 250)
             login_screen = self._is_login_screen(page)
             composer = self._find_composer(page)
             send_btn = self._find_send_button(page)
-            if composer is not None and send_btn is not None:
+            enter_submit_ready = self._can_submit_with_enter(page, composer)
+
+            if composer is not None and (send_btn is not None or enter_submit_ready):
                 if login_screen and not self.allow_anonymous_browser:
                     raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
                 return
@@ -87,15 +174,16 @@ class ChatGPTWebProvider(WebChatProvider):
                 if not self.allow_anonymous_browser:
                     raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
 
-            try:
-                page.reload(wait_until="domcontentloaded")
-            except Exception:
-                pass
-            time.sleep(0.5)
+            if attempt < attempts - 1:
+                try:
+                    page.reload(wait_until="domcontentloaded")
+                except Exception:
+                    pass
+                self._wait_for_ui_settle(page, ms=500)
 
         if saw_login_screen:
             raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
-        raise RuntimeError("UI_NOT_READY: composer or send button not found after recovery")
+        raise RuntimeError("UI_NOT_READY: composer or send controls not found after recovery")
 
     def send_prompt(self, page, text: str) -> None:
         composer = self._find_composer(page)
@@ -112,12 +200,18 @@ class ChatGPTWebProvider(WebChatProvider):
         page.keyboard.type(text, delay=1)
 
         send_btn = self._find_send_button(page)
-        if send_btn is None:
-            raise RuntimeError("UI_NOT_READY: send button missing")
-        try:
-            send_btn.click()
-        except Exception:
+        if send_btn is not None:
+            try:
+                send_btn.click()
+                return
+            except Exception:
+                pass
+
+        if self._can_submit_with_enter(page, composer):
             page.keyboard.press("Enter")
+            return
+
+        raise RuntimeError("UI_NOT_READY: send controls missing")
 
     def _stop_selector(self) -> str:
         return "button[data-testid='stop-button'], button[aria-label='Stop streaming'], button[aria-label*='Stop']"
