@@ -111,17 +111,12 @@ def test_build_provider_open_command_for_windows():
     assert cmd == ["cmd", "/c", "start", "", "https://chatgpt.com"]
 
 
-def test_maybe_auto_open_browser_opens_selected_provider_and_marks_once(tmp_path, monkeypatch):
+def test_maybe_auto_open_browser_uses_managed_browser_navigation_and_marks_once(tmp_path, monkeypatch):
     marker = tmp_path / "marker.done"
-    launches: list[tuple[list[str], dict[str, str]]] = []
-    opened_urls: list[str] = []
+    managed_urls: list[str] = []
 
-    def _fake_launch(command, env, wait_seconds=0.0):
-        launches.append((list(command), dict(env)))
-        return True
-
-    monkeypatch.setattr(first_run_browser, "_launch_and_detach_chrome_bootstrap", _fake_launch)
-    monkeypatch.setattr(first_run_browser, "open_provider_page_with_fallback", lambda url: opened_urls.append(url) or True)
+    monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda url: managed_urls.append(url) or True)
+    monkeypatch.setattr(first_run_browser, "open_provider_page", lambda _url: (_ for _ in ()).throw(AssertionError("OS opener must not be used for first-run path")))
 
     launched = first_run_browser.maybe_auto_open_browser(
         venv_python="/tmp/.venv/bin/python",
@@ -133,9 +128,53 @@ def test_maybe_auto_open_browser_opens_selected_provider_and_marks_once(tmp_path
     )
 
     assert launched is True
-    assert launches == [(["/tmp/.venv/bin/python", "-m", "clausy", "chrome"], first_run_browser.build_chrome_launch_env())]
-    assert opened_urls == ["https://claude.ai"]
+    assert managed_urls == ["https://claude.ai"]
     assert marker.exists()
+
+
+def test_open_provider_page_in_managed_browser_uses_browserpool_page_goto(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class _FakePage:
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def goto(self, url: str, wait_until: str = ""):
+            self.calls.append((url, wait_until))
+
+    page = _FakePage()
+
+    class _FakePool:
+        def __init__(self, *, cdp_host, cdp_port, profile_dir, home_url):
+            captured["cdp_host"] = cdp_host
+            captured["cdp_port"] = cdp_port
+            captured["profile_dir"] = profile_dir
+            captured["home_url"] = home_url
+            captured["started"] = False
+
+        def start(self):
+            captured["started"] = True
+
+        def get_page(self, session_id: str):
+            captured["session_id"] = session_id
+            return page
+
+    monkeypatch.setenv("CLAUSY_CDP_PORT", "9301")
+    monkeypatch.setenv("CLAUSY_PROFILE_DIR", "/tmp/clausy-profile")
+
+    opened = first_run_browser.open_provider_page_in_managed_browser(
+        "https://claude.ai",
+        browser_pool_factory=_FakePool,
+    )
+
+    assert opened is True
+    assert captured["started"] is True
+    assert captured["cdp_host"] == "127.0.0.1"
+    assert captured["cdp_port"] == 9301
+    assert captured["profile_dir"] == "/tmp/clausy-profile"
+    assert captured["home_url"] == "https://claude.ai"
+    assert captured["session_id"] == "first-run-provider"
+    assert page.calls == [("https://claude.ai", "domcontentloaded")]
 
 
 def test_open_provider_page_with_fallback_prints_manual_command_on_failure(monkeypatch, capsys):
@@ -164,9 +203,10 @@ def test_open_provider_page_with_fallback_silent_on_success(monkeypatch, capsys)
     assert out == ""
 
 
-def test_main_open_provider_only_uses_fallback_path(monkeypatch):
+def test_main_open_provider_only_uses_managed_browser_path(monkeypatch):
     calls: list[str] = []
-    monkeypatch.setattr(first_run_browser, "open_provider_page_with_fallback", lambda url: calls.append(url) or True)
+    monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda url: calls.append(url) or True)
+    monkeypatch.setattr(first_run_browser, "open_provider_page_with_fallback", lambda _url: (_ for _ in ()).throw(AssertionError("fallback should not run")))
     monkeypatch.setattr(first_run_browser, "maybe_auto_open_browser", lambda **_kwargs: False)
     monkeypatch.setattr(
         first_run_browser.os.sys,

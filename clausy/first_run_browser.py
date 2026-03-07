@@ -9,7 +9,9 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Callable, Mapping, Sequence
+
+from .browser import BrowserPool
 
 DEFAULT_MARKER_PATH = Path.home() / ".openclaw" / ".clausy-browser-first-run.done"
 _BOOTSTRAP_WAIT_SECONDS = 6.0
@@ -42,6 +44,33 @@ def is_interactive_shell() -> bool:
     return bool(getattr(os.sys.stdout, "isatty", lambda: False)())
 
 
+def auto_open_skip_reason(
+    *,
+    marker_path: Path,
+    no_browser: bool,
+    docker_mode: bool,
+    dry_run: bool,
+    ci_env: bool,
+    interactive: bool,
+    has_gui: bool,
+) -> str | None:
+    if no_browser:
+        return "--no-browser requested"
+    if docker_mode:
+        return "docker mode"
+    if dry_run:
+        return "dry-run mode"
+    if ci_env:
+        return "CI environment"
+    if not interactive:
+        return "non-interactive shell"
+    if not has_gui:
+        return "no GUI environment"
+    if marker_path.exists():
+        return "already completed once"
+    return None
+
+
 def should_auto_open_browser(
     *,
     marker_path: Path,
@@ -52,11 +81,15 @@ def should_auto_open_browser(
     interactive: bool,
     has_gui: bool,
 ) -> bool:
-    if no_browser or docker_mode or dry_run or ci_env:
-        return False
-    if not interactive or not has_gui:
-        return False
-    return not marker_path.exists()
+    return auto_open_skip_reason(
+        marker_path=marker_path,
+        no_browser=no_browser,
+        docker_mode=docker_mode,
+        dry_run=dry_run,
+        ci_env=ci_env,
+        interactive=interactive,
+        has_gui=has_gui,
+    ) is None
 
 
 def mark_first_run_complete(marker_path: Path) -> None:
@@ -74,6 +107,40 @@ def build_chrome_launch_command(venv_python: str) -> list[str]:
 def provider_url(provider_name: str | None) -> str:
     key = (provider_name or "chatgpt").strip().lower()
     return _PROVIDER_URLS.get(key, _PROVIDER_URLS["chatgpt"])
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def open_provider_page_in_managed_browser(
+    url: str,
+    *,
+    browser_pool_factory: Callable[..., BrowserPool] = BrowserPool,
+) -> bool:
+    cdp_host = (os.environ.get("CLAUSY_CDP_HOST") or "127.0.0.1").strip() or "127.0.0.1"
+    cdp_port = _env_int("CLAUSY_CDP_PORT", 9200)
+    profile_dir = (os.environ.get("CLAUSY_PROFILE_DIR") or "./profile").strip() or "./profile"
+
+    try:
+        browser = browser_pool_factory(
+            cdp_host=cdp_host,
+            cdp_port=cdp_port,
+            profile_dir=profile_dir,
+            home_url=url,
+        )
+        browser.start()
+        page = browser.get_page("first-run-provider")
+        page.goto(url, wait_until="domcontentloaded")
+    except Exception:
+        return False
+    return True
 
 
 def build_provider_open_command(url: str, *, platform: str | None = None) -> list[str]:
@@ -168,13 +235,9 @@ def maybe_auto_open_browser(
     ):
         return False
 
-    command = build_chrome_launch_command(venv_python)
-    env = build_chrome_launch_env()
-    launched = _launch_and_detach_chrome_bootstrap(command, env)
-    if not launched:
+    if not open_provider_page_in_managed_browser(provider_url(provider)):
         return False
 
-    open_provider_page_with_fallback(provider_url(provider))
     mark_first_run_complete(marker_path)
     return True
 
@@ -194,20 +257,36 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    url = provider_url(args.provider)
+
     if args.open_provider_only:
-        open_provider_page_with_fallback(provider_url(args.provider))
+        if not open_provider_page_in_managed_browser(url):
+            open_provider_page_with_fallback(url)
         return 0
 
+    marker_path = Path(args.marker_path)
     launched = maybe_auto_open_browser(
         venv_python=args.venv_python,
         provider=args.provider,
-        marker_path=Path(args.marker_path),
+        marker_path=marker_path,
         no_browser=args.no_browser,
         docker_mode=args.docker,
         dry_run=args.dry_run,
     )
     if launched:
-        print("Opened visible Chrome for first-time Clausy login.")
+        print("Opened provider URL in Clausy-managed browser for first-time login.")
+    else:
+        skip_reason = auto_open_skip_reason(
+            marker_path=marker_path,
+            no_browser=args.no_browser,
+            docker_mode=args.docker,
+            dry_run=args.dry_run,
+            ci_env=bool(os.environ.get("CI")),
+            interactive=is_interactive_shell(),
+            has_gui=has_gui_environment(),
+        )
+        if skip_reason:
+            print(f"Skipping first-run browser auto-open: {skip_reason}.")
     return 0
 
 
