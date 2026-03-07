@@ -48,6 +48,17 @@ def test_install_sh_supports_no_service_flag():
     assert 'SERVICE_ARGS+=("--no-service")' in content
 
 
+def test_install_sh_supports_no_browser_flag():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert '--no-browser' in content
+    assert 'BROWSER_ARGS+=("--no-browser")' in content
+
+
+def test_install_sh_invokes_first_run_browser_helper():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'clausy.first_run_browser' in content
+
+
 def test_install_sh_handles_empty_openclaw_args_under_nounset():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then' in content

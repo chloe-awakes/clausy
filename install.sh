@@ -16,6 +16,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 DOCKER_MODE=0
 DRY_RUN=0
 NO_SERVICE=0
+NO_BROWSER=0
 
 while (($#)); do
   case "$1" in
@@ -31,9 +32,13 @@ while (($#)); do
       NO_SERVICE=1
       shift
       ;;
+    --no-browser)
+      NO_BROWSER=1
+      shift
+      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: $0 [--docker] [--dry-run] [--no-service]" >&2
+      echo "Usage: $0 [--docker] [--dry-run] [--no-service] [--no-browser]" >&2
       exit 2
       ;;
   esac
@@ -84,6 +89,21 @@ if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.fin
 else
   echo "WARNING: clausy.service_install is not available in this environment." >&2
   echo "Skipping service setup and continuing install success." >&2
+fi
+
+BROWSER_ARGS=("--venv-python" "${VENV_PY}")
+if [[ "${DOCKER_MODE}" -eq 1 ]]; then
+  BROWSER_ARGS+=("--docker")
+fi
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  BROWSER_ARGS+=("--dry-run")
+fi
+if [[ "${NO_BROWSER}" -eq 1 ]]; then
+  BROWSER_ARGS+=("--no-browser")
+fi
+
+if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("clausy.first_run_browser") else 1)'; then
+  "${VENV_PY}" -m clausy.first_run_browser "${BROWSER_ARGS[@]}" || true
 fi
 
 SELECTED_BASE_URL="http://127.0.0.1:3108/v1"

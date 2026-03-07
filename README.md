@@ -166,6 +166,7 @@ What this means:
 - the installer also configures and auto-starts a per-user background service by default:
   - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
   - Linux: `~/.config/systemd/user/clausy.service`
+- on first local interactive install, the installer auto-opens a visible Chrome bootstrap (using `clausy chrome`) so you can log in once; this is one-time and then skipped on later reinstalls
 
 Re-running the installer updates the service definition and restarts it cleanly.
 
@@ -178,6 +179,12 @@ Skip service setup when needed (CI/minimal/container environments):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --no-service
+```
+
+Skip first-run browser auto-open:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh | bash -s -- --no-browser
 ```
 
 Module bootstrap alternative:
