@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     openbox \
     x11-utils \
+    x11vnc \
+    novnc \
+    websockify \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

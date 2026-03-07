@@ -24,9 +24,18 @@ The Docker image launches:
 
 - `Xvfb` virtual display (`:99`)
 - `openbox` window manager
+- optional `x11vnc` + noVNC proxy (`CLAUSY_ENABLE_NOVNC=1`)
 - `python -m clausy`
 
 This allows headful Chromium with CDP in containerized environments.
+
+### noVNC operation notes
+
+- Enable with `CLAUSY_ENABLE_NOVNC=1` (ports default to `CLAUSY_VNC_PORT=5900` and `CLAUSY_NOVNC_PORT=6080`).
+- The startup script binds VNC to localhost inside the container (`x11vnc -localhost`) and noVNC proxies from `6080 -> 127.0.0.1:5900`.
+- Publish noVNC as localhost-only on the host: `-p 127.0.0.1:6080:6080`.
+- Access URL: `http://127.0.0.1:6080/vnc.html`.
+- ⚠️ noVNC has no built-in auth in this milestone. Do not expose port `6080` publicly.
 
 ## Failure modes and actions
 

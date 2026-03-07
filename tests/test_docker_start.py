@@ -117,3 +117,67 @@ def test_docker_start_falls_back_to_local_after_host_launch_and_probe_fail():
     assert "--remote-debugging-address=0.0.0.0" in combined
     assert "--remote-debugging-port=65534" in combined
     assert f"--user-data-dir={profile_dir}" in combined
+
+
+def test_docker_start_novnc_disabled_by_default():
+    profile_dir = tempfile.mkdtemp(prefix="clausy-profile-")
+    completed = _run_script(
+        {
+            "CLAUSY_DOCKER_START_DRY_RUN": "1",
+            "CLAUSY_CDP_HOST": "127.0.0.1",
+            "CLAUSY_CDP_PORT": "65534",
+            "CLAUSY_PROFILE_DIR": profile_dir,
+            "CLAUSY_BROWSER_BINARY": "/bin/sh",
+            "CLAUSY_HOST_BROWSER_LAUNCH_CMD": "false",
+        }
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    combined = completed.stdout + completed.stderr
+    assert "noVNC disabled" in combined
+    assert "x11vnc command:" not in combined
+    assert "noVNC proxy command:" not in combined
+
+
+def test_docker_start_novnc_enabled_emits_startup_commands():
+    profile_dir = tempfile.mkdtemp(prefix="clausy-profile-")
+    completed = _run_script(
+        {
+            "CLAUSY_DOCKER_START_DRY_RUN": "1",
+            "CLAUSY_CDP_HOST": "127.0.0.1",
+            "CLAUSY_CDP_PORT": "65534",
+            "CLAUSY_PROFILE_DIR": profile_dir,
+            "CLAUSY_BROWSER_BINARY": "/bin/sh",
+            "CLAUSY_HOST_BROWSER_LAUNCH_CMD": "false",
+            "CLAUSY_ENABLE_NOVNC": "1",
+            "CLAUSY_NOVNC_PORT": "6080",
+            "CLAUSY_VNC_PORT": "5900",
+        }
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    combined = completed.stdout + completed.stderr
+    assert "noVNC enabled: VNC localhost:5900, noVNC listen:6080" in combined
+    assert "x11vnc command: x11vnc -display :99 -rfbport 5900 -localhost -nopw -forever -shared" in combined
+    assert "noVNC proxy command: /usr/share/novnc/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080" in combined
+
+
+def test_docker_start_novnc_invalid_port_falls_back_to_default():
+    profile_dir = tempfile.mkdtemp(prefix="clausy-profile-")
+    completed = _run_script(
+        {
+            "CLAUSY_DOCKER_START_DRY_RUN": "1",
+            "CLAUSY_CDP_HOST": "127.0.0.1",
+            "CLAUSY_CDP_PORT": "65534",
+            "CLAUSY_PROFILE_DIR": profile_dir,
+            "CLAUSY_BROWSER_BINARY": "/bin/sh",
+            "CLAUSY_HOST_BROWSER_LAUNCH_CMD": "false",
+            "CLAUSY_ENABLE_NOVNC": "1",
+            "CLAUSY_NOVNC_PORT": "not-a-number",
+        }
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    combined = completed.stdout + completed.stderr
+    assert "noVNC enabled: VNC localhost:5900, noVNC listen:6080" in combined
+    assert "noVNC proxy command: /usr/share/novnc/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080" in combined

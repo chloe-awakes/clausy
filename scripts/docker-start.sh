@@ -5,6 +5,25 @@ log() {
   printf '%s\n' "[docker-start] $*"
 }
 
+normalize_port() {
+  raw="$1"
+  fallback="$2"
+
+  case "$raw" in
+    ''|*[!0-9]*)
+      printf '%s' "$fallback"
+      return
+      ;;
+  esac
+
+  if [ "$raw" -lt 1 ] || [ "$raw" -gt 65535 ]; then
+    printf '%s' "$fallback"
+    return
+  fi
+
+  printf '%s' "$raw"
+}
+
 probe_cdp() {
   python - "$1" "$2" <<'PY'
 import json
@@ -133,6 +152,9 @@ CDP_HOST="${CLAUSY_CDP_HOST:-host.docker.internal}"
 CDP_PORT="${CLAUSY_CDP_PORT:-9200}"
 PROFILE_DIR="${CLAUSY_PROFILE_DIR:-/app/profile}"
 DRY_RUN="${CLAUSY_DOCKER_START_DRY_RUN:-0}"
+ENABLE_NOVNC="${CLAUSY_ENABLE_NOVNC:-0}"
+VNC_PORT="$(normalize_port "${CLAUSY_VNC_PORT:-5900}" "5900")"
+NOVNC_PORT="$(normalize_port "${CLAUSY_NOVNC_PORT:-6080}" "6080")"
 
 mkdir -p "$PROFILE_DIR"
 
@@ -140,6 +162,24 @@ if [ "$DRY_RUN" != "1" ]; then
   Xvfb "$DISPLAY" -screen 0 1366x768x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
   openbox >/tmp/openbox.log 2>&1 &
 fi
+
+case "$(printf '%s' "$ENABLE_NOVNC" | tr '[:upper:]' '[:lower:]')" in
+  1|true|yes|on)
+    log "noVNC enabled: VNC localhost:${VNC_PORT}, noVNC listen:${NOVNC_PORT}"
+    log "SECURITY WARNING: noVNC has no auth; publish ${NOVNC_PORT} on localhost only"
+    X11VNC_CMD="x11vnc -display ${DISPLAY} -rfbport ${VNC_PORT} -localhost -nopw -forever -shared"
+    NOVNC_CMD="/usr/share/novnc/utils/novnc_proxy --vnc 127.0.0.1:${VNC_PORT} --listen ${NOVNC_PORT}"
+    log "x11vnc command: ${X11VNC_CMD}"
+    log "noVNC proxy command: ${NOVNC_CMD}"
+    if [ "$DRY_RUN" != "1" ]; then
+      sh -c "$X11VNC_CMD" >/tmp/x11vnc.log 2>&1 &
+      sh -c "$NOVNC_CMD" >/tmp/novnc.log 2>&1 &
+    fi
+    ;;
+  *)
+    log "noVNC disabled (set CLAUSY_ENABLE_NOVNC=1 to enable)"
+    ;;
+esac
 
 # Strict precedence:
 # 1) actively attempt host-browser launch

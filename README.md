@@ -160,7 +160,7 @@ curl -fsSL https://raw.githubusercontent.com/chloe-awakes/clausy/main/install.sh
 What this means:
 
 - local/native Clausy (`python -m clausy`) listens on `127.0.0.1:3108`
-- Docker/Compose deployments should publish container port `5000` to host port `3108` (for example `-p 3108:5000`)
+- Docker/Compose deployments should publish container port `5000` to host port `3108` (for example `-p 127.0.0.1:3108:5000`)
 - the installer always wires OpenClaw to `http://127.0.0.1:3108/v1` unless `--base-url` is explicitly set
 - the installer also configures and auto-starts a per-user background service by default:
   - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
@@ -270,10 +270,12 @@ open -na "Google Chrome" --args \
   --disable-session-crashed-bubble
 ```
 
-Then build and run the Clausy container (single command) pointing to host CDP:
+Then build and run the Clausy container (single command) with localhost-only API + noVNC:
 
 ```bash
-docker build -t clausy . && docker run --rm -p 3108:5000 \
+docker build -t clausy . && docker run --rm \
+  -p 127.0.0.1:3108:5000 \
+  -p 127.0.0.1:6080:6080 \
   --add-host=host.docker.internal:host-gateway \
   -e CLAUSY_BIND=0.0.0.0 \
   -e CLAUSY_PORT=5000 \
@@ -281,6 +283,9 @@ docker build -t clausy . && docker run --rm -p 3108:5000 \
   -e CLAUSY_CDP_PORT=9200 \
   -e CLAUSY_BROWSER_BOOTSTRAP=auto \
   -e CLAUSY_HOST_BROWSER_LAUNCH_CMD='true' \
+  -e CLAUSY_ENABLE_NOVNC=1 \
+  -e CLAUSY_NOVNC_PORT=6080 \
+  -e CLAUSY_VNC_PORT=5900 \
   -v "$(pwd)/profile:/app/profile" \
   clausy
 ```
@@ -288,6 +293,8 @@ docker build -t clausy . && docker run --rm -p 3108:5000 \
 `CLAUSY_CHROME_NO_SANDBOX=1` is now baked into the Docker image by default, so no runtime `-e CLAUSY_CHROME_NO_SANDBOX=1` flag is needed for container runs.
 
 Notes:
+- Open noVNC at `http://127.0.0.1:6080/vnc.html`.
+- ⚠️ noVNC currently has **no auth**. Keep it localhost-only (`127.0.0.1:6080:6080`) unless you add your own network controls.
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` is an optional best-effort command executed by container startup before probing CDP.
 - If omitted/unavailable, startup still probes `CLAUSY_CDP_HOST:CLAUSY_CDP_PORT` then falls back automatically.
 
@@ -304,6 +311,7 @@ docker compose up --build
 ```
 
 Compose defaults target host Chrome first (`host.docker.internal:9200`) and retain in-container fallback capability automatically.
+Compose also publishes localhost-only noVNC on `127.0.0.1:6080` (no auth; keep local-only).
 
 Operational details: `docs/runbook-browser-runtime.md`.
 
@@ -365,6 +373,9 @@ Environment variables:
 - `CLAUSY_HOST_BROWSER_LAUNCH_CMD` (optional; startup command executed in container before CDP probe, placeholders supported: `{host}` `{port}` `{profile_dir}`)
 - `CLAUSY_CHROME_NO_SANDBOX` (`0|1`, app default `0`; Docker image sets `1` by default)
 - `CLAUSY_HEADLESS` (`0|1`, default `0`)
+- `CLAUSY_ENABLE_NOVNC` (`0|1`, default `0`; when enabled docker-start launches x11vnc + noVNC)
+- `CLAUSY_NOVNC_PORT` (default `6080`)
+- `CLAUSY_VNC_PORT` (default `5900`)
 - `CLAUSY_SESSION_HEADER` (default `X-Clausy-Session`)
 - `CLAUSY_MAX_REPAIRS` (default `2`)
 - `CLAUSY_RESET_TURNS` (default `20`)
@@ -603,6 +614,12 @@ Run the full release gate (tests + targeted routing/provider checks + install/bu
 
 ```bash
 scripts/release-gate.sh
+```
+
+Docker API + noVNC smoke check (requires local Docker daemon):
+
+```bash
+bash scripts/smoke/docker-novnc-smoke.sh
 ```
 
 Run grouped suites:
