@@ -129,7 +129,21 @@ GEMINI_WEB_URL = os.environ.get("CLAUSY_GEMINI_WEB_URL", "https://gemini.google.
 PERPLEXITY_URL = os.environ.get("CLAUSY_PERPLEXITY_URL", "https://www.perplexity.ai").strip()
 POE_URL = os.environ.get("CLAUSY_POE_URL", "https://poe.com").strip()
 DEEPSEEK_URL = os.environ.get("CLAUSY_DEEPSEEK_URL", "https://chat.deepseek.com").strip()
-ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=False)
+ALLOW_ANON_BROWSER = _env_flag(os.environ.get("ALLOW_ANON_BROWSER"), default=True)
+
+
+def _provider_home_url(provider_name: str | None) -> str:
+    name = (provider_name or "chatgpt").strip().lower()
+    return {
+        "chatgpt": CHATGPT_URL,
+        "claude": CLAUDE_URL,
+        "grok": GROK_URL,
+        "gemini_web": GEMINI_WEB_URL,
+        "perplexity": PERPLEXITY_URL,
+        "poe": POE_URL,
+        "deepseek": DEEPSEEK_URL,
+    }.get(name, CHATGPT_URL)
+
 
 def _profile_dir_from_env() -> str:
     raw = os.environ.get("CLAUSY_PROFILE_DIR", "./profile").strip()
@@ -209,7 +223,12 @@ EVENT_LOG_MAX_ITEMS = _env_int_bounded(
 )
 
 # Global state
-browser = BrowserPool(cdp_host=CDP_HOST, cdp_port=CDP_PORT, profile_dir=PROFILE_DIR, home_url=CHATGPT_URL)
+browser = BrowserPool(
+    cdp_host=CDP_HOST,
+    cdp_port=CDP_PORT,
+    profile_dir=PROFILE_DIR,
+    home_url=_provider_home_url(PROVIDER_NAME),
+)
 registry = ProviderRegistry.default(
     chatgpt_url=CHATGPT_URL,
     claude_url=CLAUDE_URL,
@@ -1500,6 +1519,12 @@ def _post_turn_housekeeping(session_id: str, provider, meta: Dict[str, Any]) -> 
 def main():
     print("Starting Clausy server...")
     browser.start()
+    if _env_flag(os.environ.get("CLAUSY_OPEN_PROVIDER_ON_START"), default=False):
+        try:
+            page = browser.get_first_page()
+            page.goto(browser.home_url, wait_until="domcontentloaded")
+        except Exception:
+            pass
     app.run(host=BIND, port=PORT, debug=False, threaded=False)
 
 if __name__ == "__main__":

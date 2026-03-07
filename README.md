@@ -225,7 +225,7 @@ clausy status        # runtime snapshot
 clausy config        # show effective config (env > file > defaults)
 clausy start         # start Clausy in background with current config
 clausy stop          # stop running Clausy service/process (safe if not running)
-clausy chrome        # start in visible Chrome mode (bootstrap=always, headless=0)
+clausy chrome        # start in visible Chrome mode and open configured provider URL
 ```
 
 With no args, `clausy` prints `status` plus concise usage help (it does **not** start the server).
@@ -405,7 +405,7 @@ Environment variables:
 - `CLAUSY_PERPLEXITY_URL` (default `https://www.perplexity.ai`)
 - `CLAUSY_POE_URL` (default `https://poe.com`)
 - `CLAUSY_DEEPSEEK_URL` (default `https://chat.deepseek.com`)
-- `ALLOW_ANON_BROWSER` (`0|1`, default `0`): when `1`, ChatGPT/Claude/Grok web providers attempt guest/unauth flow first and only return auth error when the page is actually login-blocked.
+- `ALLOW_ANON_BROWSER` (`0|1`, default `1`): when `1`, ChatGPT/Claude/Grok web providers attempt guest/unauth flow first and only return auth error when the page is actually login-blocked. Set to `0` to require authenticated sessions.
 - `CLAUSY_CDP_HOST` (default `127.0.0.1`)
 - `CLAUSY_CDP_PORT` (default `9200`)
 - `CLAUSY_PROFILE_DIR` (default `./profile`)

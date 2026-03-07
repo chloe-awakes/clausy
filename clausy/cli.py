@@ -340,7 +340,13 @@ def _cmd_stop() -> int:
 
 def _cmd_start(chrome_mode: bool = False) -> int:
     if chrome_mode:
-        return _launch_background({"CLAUSY_BROWSER_BOOTSTRAP": "always", "CLAUSY_HEADLESS": "0"})
+        return _launch_background(
+            {
+                "CLAUSY_BROWSER_BOOTSTRAP": "always",
+                "CLAUSY_HEADLESS": "0",
+                "CLAUSY_OPEN_PROVIDER_ON_START": "1",
+            }
+        )
     return _launch_background()
 
 

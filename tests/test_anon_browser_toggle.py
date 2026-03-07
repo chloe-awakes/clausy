@@ -38,6 +38,18 @@ def test_env_flag_parsing(raw, expected):
     assert server._env_flag(raw, default=False) is expected
 
 
+def test_allow_anon_browser_default_is_enabled_when_unset(monkeypatch):
+    monkeypatch.delenv("ALLOW_ANON_BROWSER", raising=False)
+
+    assert server._env_flag(None, default=True) is True
+
+
+def test_allow_anon_browser_can_be_explicitly_disabled(monkeypatch):
+    monkeypatch.setenv("ALLOW_ANON_BROWSER", "0")
+
+    assert server._env_flag("0", default=True) is False
+
+
 def test_provider_registry_default_wires_allow_anonymous_flag():
     registry = ProviderRegistry.default(chatgpt_url="https://chatgpt.com", allow_anonymous_browser=True)
 

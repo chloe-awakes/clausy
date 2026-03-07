@@ -37,6 +37,7 @@ def test_cli_main_chrome_starts_background_visible_mode(monkeypatch):
     assert called["extra_env"] == {
         "CLAUSY_BROWSER_BOOTSTRAP": "always",
         "CLAUSY_HEADLESS": "0",
+        "CLAUSY_OPEN_PROVIDER_ON_START": "1",
     }
 
 
@@ -61,6 +62,7 @@ def test_module_invocation_path_respects_chrome_subcommand(monkeypatch):
     assert called["extra_env"] == {
         "CLAUSY_BROWSER_BOOTSTRAP": "always",
         "CLAUSY_HEADLESS": "0",
+        "CLAUSY_OPEN_PROVIDER_ON_START": "1",
     }
 
 
