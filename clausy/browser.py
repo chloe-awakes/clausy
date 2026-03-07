@@ -217,6 +217,19 @@ class BrowserPool:
         self.start()
         return True
 
+    def get_first_page(self):
+        with self._lock:
+            if not self._browser:
+                self.start()
+
+            existing_pages = list(getattr(self._context, "pages", []) or [])
+            if existing_pages:
+                return existing_pages[0]
+
+            page = self._context.new_page()
+            page.goto(self.home_url, wait_until="domcontentloaded")
+            return page
+
     def get_page(self, session_id: str):
         if not session_id:
             session_id = "default"

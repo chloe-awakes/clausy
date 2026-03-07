@@ -18,6 +18,14 @@ DRY_RUN=0
 NO_SERVICE=0
 NO_BROWSER=0
 PATH_PERSISTED=0
+SHIM_STATUS="not-attempted"
+SHIM_PATH=""
+SHIM_CANDIDATE_PATHS=(
+  "/usr/local/bin"
+  "/opt/homebrew/bin"
+  "/usr/bin"
+  "${HOME}/.local/bin"
+)
 
 TTY_PROMPT_FD=""
 
@@ -104,6 +112,38 @@ append_path_to_shell_rc() {
   return 0
 }
 
+try_create_global_shim() {
+  local target="$1"
+  local with_sudo="${2:-0}"
+  local candidate_dir=""
+  local shim_path=""
+
+  for candidate_dir in "${SHIM_CANDIDATE_PATHS[@]}"; do
+    if [[ "${candidate_dir}" == "${HOME}"/* ]] && [[ ! -d "${candidate_dir}" ]]; then
+      mkdir -p "${candidate_dir}" || true
+    fi
+
+    [[ -d "${candidate_dir}" ]] || continue
+    shim_path="${candidate_dir}/clausy"
+
+    if ln -sfn "${target}" "${shim_path}" 2>/dev/null; then
+      SHIM_STATUS="created"
+      SHIM_PATH="${shim_path}"
+      return 0
+    fi
+
+    if [[ "${with_sudo}" -eq 1 ]] && command -v sudo >/dev/null 2>&1; then
+      if sudo ln -sfn "${target}" "${shim_path}" >/dev/null 2>&1; then
+        SHIM_STATUS="created-with-sudo"
+        SHIM_PATH="${shim_path}"
+        return 0
+      fi
+    fi
+  done
+
+  return 1
+}
+
 while (($#)); do
   case "$1" in
     --docker)
@@ -138,6 +178,25 @@ fi
 
 VENV_PY="${VENV_DIR}/bin/python"
 VENV_BIN_PATH="$(cd "${VENV_DIR}/bin" && pwd)"
+
+if try_create_global_shim "${VENV_BIN_PATH}/clausy" 0; then
+  :
+else
+  SHIM_STATUS="failed"
+  if is_interactive; then
+    prompt_read shim_sudo_input "Could not write global clausy shim. Try with sudo where needed? [y/N] " || true
+    shim_sudo_normalized="$(printf '%s' "${shim_sudo_input:-}" | tr '[:upper:]' '[:lower:]')"
+    if [[ "${shim_sudo_normalized}" == "y" || "${shim_sudo_normalized}" == "yes" ]]; then
+      if try_create_global_shim "${VENV_BIN_PATH}/clausy" 1; then
+        :
+      else
+        SHIM_STATUS="failed"
+      fi
+    fi
+  else
+    echo "Skipping global clausy shim creation (non-interactive mode)."
+  fi
+fi
 
 "${VENV_PY}" -m pip install -U pip
 
@@ -233,6 +292,16 @@ echo
 echo "Clausy install complete."
 echo "OpenClaw provider configured for: ${SELECTED_BASE_URL}"
 echo "A backup of ~/.openclaw/openclaw.json is created before non-dry-run writes."
+echo
+
+echo "Global clausy command shim:"
+if [[ "${SHIM_STATUS}" == "created" || "${SHIM_STATUS}" == "created-with-sudo" ]]; then
+  echo "  installed at ${SHIM_PATH}"
+else
+  echo "  not installed"
+  echo "  Could not install global shim automatically."
+fi
+
 echo
 if [[ "${PATH_PERSISTED}" -eq 0 ]]; then
   IMMEDIATE_PATH_EXPORT="export PATH=\"${VENV_BIN_PATH}:\$PATH\""

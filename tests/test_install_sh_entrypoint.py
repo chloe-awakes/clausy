@@ -114,6 +114,30 @@ def test_install_sh_prints_post_install_command_help_block():
     assert 'clausy chrome = starts chrome with clausy' in content
 
 
+def test_install_sh_attempts_global_clausy_shim_creation_with_path_fallbacks():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'SHIM_CANDIDATE_PATHS=(' in content
+    assert '/usr/local/bin' in content
+    assert '/opt/homebrew/bin' in content
+    assert '/usr/bin' in content
+    assert 'ln -sfn "${target}" "${shim_path}"' in content
+
+
+def test_install_sh_handles_non_writable_shim_locations_without_hanging_noninteractive_mode():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'SHIM_STATUS="not-attempted"' in content
+    assert 'if is_interactive; then' in content
+    assert 'Skipping global clausy shim creation (non-interactive mode).' in content
+    assert 'Could not install global shim automatically.' in content
+
+
+def test_install_sh_summarizes_shim_result_with_actionable_fallback():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'Global clausy command shim:' in content
+    assert 'Use Clausy immediately in this shell:' in content
+    assert 'Add Clausy to PATH in shell rc? [y/N]' in content
+
+
 def test_install_sh_handles_empty_openclaw_args_under_nounset():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'if [[ ${#OPENCLAW_ARGS[@]} -gt 0 ]]; then' in content

@@ -166,11 +166,13 @@ What this means:
 - the installer also configures and auto-starts a per-user background service by default:
   - macOS: `~/Library/LaunchAgents/com.clausy.gateway.plist`
   - Linux: `~/.config/systemd/user/clausy.service`
+- installer now attempts a global `clausy` command shim (symlink to `.venv/bin/clausy`) in standard PATH locations, preferring `/usr/local/bin` and falling back across `/opt/homebrew/bin`, `/usr/bin`, and `~/.local/bin`
+- if global shim locations are not writable, interactive installs offer an optional sudo retry; fallback remains shell-rc PATH update
 - on interactive installs (TTY), the installer prompts for:
   - preferred provider (persisted via `clausy provider ...`)
   - optional Playwright Chromium fallback install (`Install Chromium fallback now? [Y/n]`)
   - optional shell PATH update (`Add Clausy to PATH in shell rc? [y/N]`) with duplicate-safe append for bash/zsh/fish
-- in non-interactive mode (e.g. curl pipes, CI), prompts are skipped and defaults stay unchanged
+- in non-interactive mode (e.g. curl pipes, CI), prompts are skipped, shim setup is best-effort only (no sudo/prompt hang), and defaults stay unchanged
 - on first local interactive install, the installer opens the selected provider URL inside the Clausy-managed Playwright/Chrome instance via managed navigation (`page.goto`) so you can log in once; this is one-time and then skipped on later reinstalls
 - strict policy: provider navigation in this first-run flow is managed-browser only (no OS URL-opener fallback path)
 

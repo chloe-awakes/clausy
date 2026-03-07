@@ -135,7 +135,10 @@ def open_provider_page_in_managed_browser(
             home_url=url,
         )
         browser.start()
-        page = browser.get_page("first-run-provider")
+        if hasattr(browser, "get_first_page"):
+            page = browser.get_first_page()
+        else:
+            page = browser.get_page("first-run-provider")
         page.goto(url, wait_until="domcontentloaded")
     except Exception:
         return False

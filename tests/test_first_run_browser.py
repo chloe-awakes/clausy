@@ -121,8 +121,8 @@ def test_open_provider_page_in_managed_browser_uses_browserpool_page_goto(monkey
         def start(self):
             captured["started"] = True
 
-        def get_page(self, session_id: str):
-            captured["session_id"] = session_id
+        def get_first_page(self):
+            captured["get_first_page_called"] = True
             return page
 
     monkeypatch.setenv("CLAUSY_CDP_PORT", "9301")
@@ -139,8 +139,44 @@ def test_open_provider_page_in_managed_browser_uses_browserpool_page_goto(monkey
     assert captured["cdp_port"] == 9301
     assert captured["profile_dir"] == "/tmp/clausy-profile"
     assert captured["home_url"] == "https://claude.ai"
-    assert captured["session_id"] == "first-run-provider"
+    assert captured["get_first_page_called"] is True
     assert page.calls == [("https://claude.ai", "domcontentloaded")]
+
+
+def test_open_provider_page_in_managed_browser_reuses_existing_first_tab_without_creating_new_page():
+    class _FakePage:
+        def __init__(self):
+            self.goto_calls: list[tuple[str, str]] = []
+
+        def goto(self, url: str, wait_until: str = ""):
+            self.goto_calls.append((url, wait_until))
+
+    existing_page = _FakePage()
+
+    class _FakePool:
+        def __init__(self, **_kwargs):
+            self.new_page_calls = 0
+
+        def start(self):
+            return None
+
+        def get_first_page(self):
+            return existing_page
+
+        def get_page(self, _session_id: str):
+            self.new_page_calls += 1
+            raise AssertionError("first-run flow should not request a new session page")
+
+    pool = _FakePool()
+
+    opened = first_run_browser.open_provider_page_in_managed_browser(
+        "https://chatgpt.com",
+        browser_pool_factory=lambda **_kwargs: pool,
+    )
+
+    assert opened is True
+    assert pool.new_page_calls == 0
+    assert existing_page.goto_calls == [("https://chatgpt.com", "domcontentloaded")]
 
 
 def test_main_open_provider_only_uses_managed_browser_path(monkeypatch):
