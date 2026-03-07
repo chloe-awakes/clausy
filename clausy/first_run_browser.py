@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shlex
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -143,36 +142,10 @@ def open_provider_page_in_managed_browser(
     return True
 
 
-def build_provider_open_command(url: str, *, platform: str | None = None) -> list[str]:
-    os_name = os.name if platform is None else platform
-    if os_name == "nt":
-        return ["cmd", "/c", "start", "", url]
-    if os.uname().sysname == "Darwin":
-        return ["open", "-a", "Google Chrome", url]
-    return ["xdg-open", url]
-
-
-def open_provider_page(url: str) -> bool:
-    command = build_provider_open_command(url)
-    try:
-        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    except Exception:
-        return False
-    return True
-
-
-def provider_manual_open_command(url: str) -> str:
-    command = build_provider_open_command(url)
-    return " ".join(shlex.quote(part) for part in command)
-
-
-def open_provider_page_with_fallback(url: str) -> bool:
-    if open_provider_page(url):
-        return True
-
-    print("Could not auto-open provider URL. Run this command manually:")
-    print(f"  {provider_manual_open_command(url)}")
-    return False
+def print_managed_navigation_error(url: str) -> None:
+    print("ERROR: Could not open provider URL in Clausy-managed browser.")
+    print(f"Provider URL: {url}")
+    print("Action: run 'clausy chrome' to start/verify managed browser, then re-run the install step.")
 
 
 def build_chrome_launch_env(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -261,7 +234,8 @@ def main() -> int:
 
     if args.open_provider_only:
         if not open_provider_page_in_managed_browser(url):
-            open_provider_page_with_fallback(url)
+            print_managed_navigation_error(url)
+            return 1
         return 0
 
     marker_path = Path(args.marker_path)
@@ -275,19 +249,23 @@ def main() -> int:
     )
     if launched:
         print("Opened provider URL in Clausy-managed browser for first-time login.")
-    else:
-        skip_reason = auto_open_skip_reason(
-            marker_path=marker_path,
-            no_browser=args.no_browser,
-            docker_mode=args.docker,
-            dry_run=args.dry_run,
-            ci_env=bool(os.environ.get("CI")),
-            interactive=is_interactive_shell(),
-            has_gui=has_gui_environment(),
-        )
-        if skip_reason:
-            print(f"Skipping first-run browser auto-open: {skip_reason}.")
-    return 0
+        return 0
+
+    skip_reason = auto_open_skip_reason(
+        marker_path=marker_path,
+        no_browser=args.no_browser,
+        docker_mode=args.docker,
+        dry_run=args.dry_run,
+        ci_env=bool(os.environ.get("CI")),
+        interactive=is_interactive_shell(),
+        has_gui=has_gui_environment(),
+    )
+    if skip_reason:
+        print(f"Skipping first-run browser auto-open: {skip_reason}.")
+        return 0
+
+    print_managed_navigation_error(url)
+    return 1
 
 
 if __name__ == "__main__":

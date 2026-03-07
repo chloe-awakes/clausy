@@ -78,45 +78,11 @@ def test_provider_url_maps_selected_provider():
     assert first_run_browser.provider_url("unknown") == "https://chatgpt.com"
 
 
-def test_build_provider_open_command_for_macos(monkeypatch):
-    monkeypatch.setattr(first_run_browser.os, "name", "posix")
-    monkeypatch.setattr(first_run_browser.os, "uname", lambda: type("U", (), {"sysname": "Darwin"})())
-
-    cmd = first_run_browser.build_provider_open_command("https://chatgpt.com")
-
-    assert cmd == ["open", "-a", "Google Chrome", "https://chatgpt.com"]
-
-
-def test_provider_manual_open_command_for_macos_uses_chrome_app(monkeypatch):
-    monkeypatch.setattr(first_run_browser.os, "name", "posix")
-    monkeypatch.setattr(first_run_browser.os, "uname", lambda: type("U", (), {"sysname": "Darwin"})())
-
-    cmd = first_run_browser.provider_manual_open_command("https://chatgpt.com")
-
-    assert cmd == "open -a 'Google Chrome' https://chatgpt.com"
-
-
-def test_build_provider_open_command_for_linux(monkeypatch):
-    monkeypatch.setattr(first_run_browser.os, "name", "posix")
-    monkeypatch.setattr(first_run_browser.os, "uname", lambda: type("U", (), {"sysname": "Linux"})())
-
-    cmd = first_run_browser.build_provider_open_command("https://chatgpt.com")
-
-    assert cmd == ["xdg-open", "https://chatgpt.com"]
-
-
-def test_build_provider_open_command_for_windows():
-    cmd = first_run_browser.build_provider_open_command("https://chatgpt.com", platform="nt")
-
-    assert cmd == ["cmd", "/c", "start", "", "https://chatgpt.com"]
-
-
 def test_maybe_auto_open_browser_uses_managed_browser_navigation_and_marks_once(tmp_path, monkeypatch):
     marker = tmp_path / "marker.done"
     managed_urls: list[str] = []
 
     monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda url: managed_urls.append(url) or True)
-    monkeypatch.setattr(first_run_browser, "open_provider_page", lambda _url: (_ for _ in ()).throw(AssertionError("OS opener must not be used for first-run path")))
 
     launched = first_run_browser.maybe_auto_open_browser(
         venv_python="/tmp/.venv/bin/python",
@@ -177,36 +143,9 @@ def test_open_provider_page_in_managed_browser_uses_browserpool_page_goto(monkey
     assert page.calls == [("https://claude.ai", "domcontentloaded")]
 
 
-def test_open_provider_page_with_fallback_prints_manual_command_on_failure(monkeypatch, capsys):
-    monkeypatch.setattr(first_run_browser, "open_provider_page", lambda _url: False)
-    monkeypatch.setattr(
-        first_run_browser,
-        "provider_manual_open_command",
-        lambda _url: "open https://chatgpt.com",
-    )
-
-    opened = first_run_browser.open_provider_page_with_fallback("https://chatgpt.com")
-
-    out = capsys.readouterr().out
-    assert opened is False
-    assert "Could not auto-open provider URL" in out
-    assert "open https://chatgpt.com" in out
-
-
-def test_open_provider_page_with_fallback_silent_on_success(monkeypatch, capsys):
-    monkeypatch.setattr(first_run_browser, "open_provider_page", lambda _url: True)
-
-    opened = first_run_browser.open_provider_page_with_fallback("https://chatgpt.com")
-
-    out = capsys.readouterr().out
-    assert opened is True
-    assert out == ""
-
-
 def test_main_open_provider_only_uses_managed_browser_path(monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda url: calls.append(url) or True)
-    monkeypatch.setattr(first_run_browser, "open_provider_page_with_fallback", lambda _url: (_ for _ in ()).throw(AssertionError("fallback should not run")))
     monkeypatch.setattr(first_run_browser, "maybe_auto_open_browser", lambda **_kwargs: False)
     monkeypatch.setattr(
         first_run_browser.os.sys,
@@ -225,3 +164,56 @@ def test_main_open_provider_only_uses_managed_browser_path(monkeypatch):
 
     assert rc == 0
     assert calls == ["https://claude.ai"]
+
+
+def test_main_open_provider_only_returns_nonzero_when_managed_navigation_fails(monkeypatch, capsys):
+    monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda _url: False)
+    monkeypatch.setattr(
+        first_run_browser.os.sys,
+        "argv",
+        [
+            "first_run_browser.py",
+            "--venv-python",
+            "/tmp/.venv/bin/python",
+            "--provider",
+            "claude",
+            "--open-provider-only",
+        ],
+    )
+
+    rc = first_run_browser.main()
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "ERROR:" in out
+    assert "managed browser" in out
+    assert "clausy chrome" in out
+
+
+def test_main_returns_nonzero_when_first_run_managed_navigation_fails(monkeypatch, tmp_path, capsys):
+    marker = tmp_path / "marker.done"
+    monkeypatch.setattr(first_run_browser, "is_interactive_shell", lambda: True)
+    monkeypatch.setattr(first_run_browser, "has_gui_environment", lambda: True)
+    monkeypatch.setattr(first_run_browser, "open_provider_page_in_managed_browser", lambda _url: False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(
+        first_run_browser.os.sys,
+        "argv",
+        [
+            "first_run_browser.py",
+            "--venv-python",
+            "/tmp/.venv/bin/python",
+            "--provider",
+            "claude",
+            "--marker-path",
+            str(marker),
+        ],
+    )
+
+    rc = first_run_browser.main()
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "ERROR:" in out
+    assert "managed browser" in out
+    assert marker.exists() is False

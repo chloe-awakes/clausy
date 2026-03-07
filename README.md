@@ -171,7 +171,8 @@ What this means:
   - optional Playwright Chromium fallback install (`Install Chromium fallback now? [Y/n]`)
   - optional shell PATH update (`Add Clausy to PATH in shell rc? [y/N]`) with duplicate-safe append for bash/zsh/fish
 - in non-interactive mode (e.g. curl pipes, CI), prompts are skipped and defaults stay unchanged
-- on first local interactive install, the installer opens the selected provider URL inside the Clausy-managed Playwright/Chrome instance so you can log in once; this is one-time and then skipped on later reinstalls
+- on first local interactive install, the installer opens the selected provider URL inside the Clausy-managed Playwright/Chrome instance via managed navigation (`page.goto`) so you can log in once; this is one-time and then skipped on later reinstalls
+- strict policy: provider navigation in this first-run flow is managed-browser only (no OS URL-opener fallback path)
 
 Re-running the installer updates the service definition and restarts it cleanly.
 
