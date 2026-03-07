@@ -201,13 +201,33 @@ playwright install chromium
 
 ## Run
 
-### 1) Start Clausy (auto-bootstrap path)
+### 1) Start Clausy
+
+Preferred helper for a visible local Chrome session:
 
 ```bash
-python -m clausy
+clausy chrome
 ```
 
-On a fresh machine, Clausy will try to connect to CDP first, then auto-launch a detected Chrome/Chromium binary if CDP is not already available.
+Equivalent module invocation:
+
+```bash
+python -m clausy chrome
+```
+
+This helper enforces:
+
+- `CLAUSY_BROWSER_BOOTSTRAP=always`
+- `CLAUSY_HEADLESS=0`
+
+Default behavior is unchanged when you run Clausy without subcommands:
+
+```bash
+clausy
+# or: python -m clausy
+```
+
+In default mode, Clausy tries to connect to CDP first, then auto-launches a detected Chrome/Chromium binary when CDP is not already available.
 
 ### Optional: manually start Chrome with remote debugging
 

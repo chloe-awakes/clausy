@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-clausy = "clausy.server:main"
+clausy = "clausy.cli:main"
 clausy-openclaw-install = "clausy.openclaw_install:main"
 clausy-install = "clausy.install:main"
 
