@@ -170,8 +170,8 @@ What this means:
 - if global shim locations are not writable, interactive installs offer an optional sudo retry; fallback remains shell-rc PATH update
 - on interactive installs (TTY), the installer prompts for:
   - preferred provider (persisted via `clausy provider ...`)
-  - optional Playwright Chromium fallback install (`Install Chromium fallback now? [Y/n]`)
-  - optional shell PATH update (`Add Clausy to PATH in shell rc? [y/N]`) with duplicate-safe append for bash/zsh/fish
+  - optional Playwright Chromium fallback install (`Install Chromium fallback now? [y/N]`, default: No)
+  - optional shell PATH update (`Add Clausy to PATH in shell rc? [y/N]`) with duplicate-safe append for bash/zsh/fish, but only when a global shim was not installed into an existing PATH directory
 - in non-interactive mode (e.g. curl pipes, CI), prompts are skipped, shim setup is best-effort only (no sudo/prompt hang), and defaults stay unchanged
 - on first local interactive install, the installer opens the selected provider URL inside the Clausy-managed Playwright/Chrome instance via managed navigation (`page.goto`) so you can log in once; this is one-time and then skipped on later reinstalls
 - strict policy: provider navigation in this first-run flow is managed-browser only (no OS URL-opener fallback path)

@@ -20,6 +20,7 @@ NO_BROWSER=0
 PATH_PERSISTED=0
 SHIM_STATUS="not-attempted"
 SHIM_PATH=""
+SHIM_ON_PATH=0
 SHIM_CANDIDATE_PATHS=(
   "/usr/local/bin"
   "/opt/homebrew/bin"
@@ -65,10 +66,19 @@ prompt_read() {
   return 0
 }
 
-is_yes() {
-  local v="${1:-}"
-  v="$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')"
-  [[ -z "$v" || "$v" == "y" || "$v" == "yes" ]]
+path_contains_dir() {
+  local candidate_dir="$1"
+  local old_ifs="${IFS}"
+  local path_part=""
+  IFS=':'
+  for path_part in ${PATH:-}; do
+    if [[ "${path_part}" == "${candidate_dir}" ]]; then
+      IFS="${old_ifs}"
+      return 0
+    fi
+  done
+  IFS="${old_ifs}"
+  return 1
 }
 
 append_path_to_shell_rc() {
@@ -198,6 +208,13 @@ else
   fi
 fi
 
+if [[ "${SHIM_STATUS}" == "created" || "${SHIM_STATUS}" == "created-with-sudo" ]]; then
+  if path_contains_dir "$(dirname "${SHIM_PATH}")"; then
+    SHIM_ON_PATH=1
+    PATH_PERSISTED=1
+  fi
+fi
+
 "${VENV_PY}" -m pip install -U pip
 
 if [[ -f "${REPO_ROOT}/pyproject.toml" ]]; then
@@ -249,8 +266,9 @@ else
 fi
 
 if is_interactive && [[ "${NO_BROWSER}" -eq 0 ]]; then
-  prompt_read chromium_input "Install Chromium fallback now? [Y/n] " || true
-  if is_yes "${chromium_input:-}"; then
+  prompt_read chromium_input "Install Chromium fallback now? [y/N] " || true
+  chromium_normalized="$(printf '%s' "${chromium_input:-}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${chromium_normalized}" == "y" || "${chromium_normalized}" == "yes" ]]; then
     "${VENV_PY}" -m playwright install chromium || true
   fi
 fi
@@ -273,7 +291,7 @@ if "${VENV_PY}" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.fin
   fi
 fi
 
-if is_interactive; then
+if is_interactive && [[ "${SHIM_ON_PATH}" -eq 0 ]]; then
   prompt_read add_path_input "Add Clausy to PATH in shell rc? [y/N] " || true
   add_path_normalized="$(printf '%s' "${add_path_input:-}" | tr '[:upper:]' '[:lower:]')"
   if [[ "${add_path_normalized}" == "y" || "${add_path_normalized}" == "yes" ]]; then

@@ -81,13 +81,15 @@ def test_install_sh_uses_dev_tty_for_prompts_when_stdin_is_piped():
 
 def test_install_sh_prompts_for_optional_chromium_install_when_interactive():
     content = INSTALL_SH.read_text(encoding="utf-8")
-    assert 'prompt_read chromium_input "Install Chromium fallback now? [Y/n] "' in content
+    assert 'prompt_read chromium_input "Install Chromium fallback now? [y/N] "' in content
+    assert 'if [[ "${chromium_normalized}" == "y" || "${chromium_normalized}" == "yes" ]]; then' in content
     assert '"${VENV_PY}" -m playwright install chromium' in content
 
 
 def test_install_sh_supports_optional_path_rc_append_without_duplicates():
     content = INSTALL_SH.read_text(encoding="utf-8")
     assert 'prompt_read add_path_input "Add Clausy to PATH in shell rc? [y/N] "' in content
+    assert 'if is_interactive && [[ "${SHIM_ON_PATH}" -eq 0 ]]; then' in content
     assert 'append_path_to_shell_rc' in content
     assert 'grep -Fqs' in content
 
@@ -121,6 +123,14 @@ def test_install_sh_attempts_global_clausy_shim_creation_with_path_fallbacks():
     assert '/opt/homebrew/bin' in content
     assert '/usr/bin' in content
     assert 'ln -sfn "${target}" "${shim_path}"' in content
+
+
+def test_install_sh_skips_path_shell_rc_prompt_when_global_shim_is_already_on_path():
+    content = INSTALL_SH.read_text(encoding="utf-8")
+    assert 'SHIM_ON_PATH=0' in content
+    assert 'if [[ "${SHIM_STATUS}" == "created" || "${SHIM_STATUS}" == "created-with-sudo" ]]; then' in content
+    assert 'if path_contains_dir "$(dirname "${SHIM_PATH}")"; then' in content
+    assert 'if is_interactive && [[ "${SHIM_ON_PATH}" -eq 0 ]]; then' in content
 
 
 def test_install_sh_handles_non_writable_shim_locations_without_hanging_noninteractive_mode():
