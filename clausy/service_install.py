@@ -90,7 +90,8 @@ def build_service_plan(
     sys_name = (system_name or platform.system()).strip()
     home_dir = home or Path.home()
     root = (repo_root or Path.cwd()).resolve()
-    py = (venv_python or (root / ".venv/bin/python")).resolve()
+    py_input = venv_python or (root / ".venv/bin/python")
+    py = Path(os.path.abspath(str(py_input if py_input.is_absolute() else root / py_input)))
 
     if sys_name == "Darwin":
         unit_path = home_dir / "Library/LaunchAgents" / f"{SERVICE_LABEL}.plist"

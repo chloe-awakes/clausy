@@ -39,6 +39,34 @@ def test_linux_plan_generates_systemd_user_unit():
     assert "WantedBy=default.target" in plan.content
 
 
+def test_build_service_plan_preserves_venv_python_symlink_path(tmp_path):
+    real_python = tmp_path / "python-real"
+    real_python.write_text("#!/bin/sh\n", encoding="utf-8")
+    symlink_python = tmp_path / "venv/bin/python"
+    symlink_python.parent.mkdir(parents=True)
+    symlink_python.symlink_to(real_python)
+
+    darwin_plan = service_install.build_service_plan(
+        system_name="Darwin",
+        home=tmp_path,
+        repo_root=tmp_path / "repo",
+        venv_python=symlink_python,
+    )
+    assert darwin_plan is not None
+    assert f"<string>{symlink_python}</string>" in darwin_plan.content
+    assert f"<string>{real_python}</string>" not in darwin_plan.content
+
+    linux_plan = service_install.build_service_plan(
+        system_name="Linux",
+        home=tmp_path,
+        repo_root=tmp_path / "repo",
+        venv_python=symlink_python,
+    )
+    assert linux_plan is not None
+    assert f"ExecStart={symlink_python} -m clausy" in linux_plan.content
+    assert f"ExecStart={real_python} -m clausy" not in linux_plan.content
+
+
 def test_unsupported_platform_returns_none_plan():
     plan = service_install.build_service_plan(
         system_name="Windows",
