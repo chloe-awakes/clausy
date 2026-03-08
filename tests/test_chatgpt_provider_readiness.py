@@ -63,7 +63,7 @@ def test_ensure_ready_allows_composer_only_when_enter_send_is_valid(monkeypatch)
     assert page.reload_calls == 0
 
 
-def test_ensure_ready_retries_and_recovers_after_reload(monkeypatch):
+def test_ensure_ready_retries_and_recovers_without_forced_reload(monkeypatch):
     provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
     page = DummyPage()
 
@@ -81,7 +81,7 @@ def test_ensure_ready_retries_and_recovers_after_reload(monkeypatch):
 
     provider.ensure_ready(page)
 
-    assert page.reload_calls == 1
+    assert page.reload_calls == 0
 
 
 def test_ensure_ready_still_fails_without_send_or_enter_submit(monkeypatch):

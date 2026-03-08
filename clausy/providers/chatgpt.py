@@ -50,6 +50,11 @@ class ChatGPTWebProvider(WebChatProvider):
                 "div[contenteditable='true'][role='textbox']",
                 "div[contenteditable='true'][aria-label*='Message']",
                 "div[contenteditable='true'][aria-label*='Nachricht']",
+                "div[contenteditable='true'][aria-label*='Ask']",
+                "div[contenteditable='true'][data-lexical-editor='true']",
+                "div.ProseMirror[contenteditable='true']",
+                "textarea[aria-label*='Message']",
+                "textarea[aria-label*='Ask']",
                 "div[contenteditable='true']",
             ],
         )
@@ -184,9 +189,11 @@ class ChatGPTWebProvider(WebChatProvider):
             page.goto(self.url, wait_until="domcontentloaded")
 
         saw_login_screen = False
-        attempts = 4
+        # ChatGPT UI can take a few seconds to hydrate; use a longer bounded poll
+        # before attempting hard recovery reloads.
+        attempts = 8
         for attempt in range(attempts):
-            self._wait_for_ui_settle(page, ms=350 if attempt == 0 else 250)
+            self._wait_for_ui_settle(page, ms=900 if attempt < 3 else 500)
             login_screen = self._is_login_screen(page)
             composer = self._find_composer(page)
             send_btn = self._find_send_button(page)
@@ -202,12 +209,14 @@ class ChatGPTWebProvider(WebChatProvider):
                 if not self.allow_anonymous_browser:
                     raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
 
-            if attempt < attempts - 1:
+            # Avoid aggressive reload loops while the app is hydrating.
+            # Do a hard recovery reload only after a few failed polls.
+            if attempt in (3, 6):
                 try:
                     page.reload(wait_until="domcontentloaded")
                 except Exception:
                     pass
-                self._wait_for_ui_settle(page, ms=500)
+                self._wait_for_ui_settle(page, ms=900)
 
         if saw_login_screen:
             raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
