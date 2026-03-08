@@ -185,3 +185,19 @@ def test_find_send_button_matches_send_prompt_aria_selector_when_role_lookup_is_
     btn = provider._find_send_button(page)
 
     assert btn is not None
+
+
+class _ReadonlyFalseComposer:
+    def is_disabled(self):
+        return False
+
+    def get_attribute(self, name: str):
+        if name == "readonly":
+            return "false"
+        return None
+
+
+def test_is_composer_interactable_treats_readonly_false_as_editable():
+    provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
+
+    assert provider._is_composer_interactable(_ReadonlyFalseComposer()) is True

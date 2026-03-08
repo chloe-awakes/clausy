@@ -161,8 +161,13 @@ class ChatGPTWebProvider(WebChatProvider):
             pass
         try:
             target = composer.first if hasattr(composer, "first") else composer
-            if target.get_attribute("readonly") is not None:
-                return False
+            readonly = target.get_attribute("readonly")
+            if readonly is not None:
+                val = str(readonly).strip().lower()
+                # Some UIs render readonly="false" while still being editable.
+                # Treat only truthy readonly states as non-interactable.
+                if val in {"", "true", "1", "readonly"}:
+                    return False
         except Exception:
             pass
         return True
