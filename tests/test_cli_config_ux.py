@@ -185,3 +185,65 @@ def test_stop_does_not_terminate_unverified_browser_process(monkeypatch, tmp_pat
     assert "not running" in out.lower()
     assert killed == []
     assert not browser_pid_file.exists()
+
+
+def test_start_cleans_stale_clausy_server_processes(monkeypatch, tmp_path, capsys):
+    pid_file = tmp_path / "clausy.pid"
+    monkeypatch.setattr(cli, "_pid_file_path", lambda: pid_file)
+    monkeypatch.setattr(cli.sys, "executable", "/opt/current/bin/python")
+
+    killed = []
+    monkeypatch.setattr(cli.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+
+    class _Proc:
+        pid = 9999
+
+    popen_calls = []
+
+    def _fake_popen(*args, **kwargs):
+        popen_calls.append((args, kwargs))
+        return _Proc()
+
+    monkeypatch.setattr(cli.subprocess, "Popen", _fake_popen)
+
+    class _PsResult:
+        returncode = 0
+        stdout = "123 /opt/old/bin/python -m clausy.server\n"
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: _PsResult())
+
+    rc = cli.main(["start"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert (123, cli.signal.SIGTERM) in killed
+    assert "Cleaned stale Clausy process" in out
+    assert popen_calls
+    assert pid_file.read_text(encoding="utf-8").strip() == "9999"
+
+
+def test_start_keeps_existing_canonical_process_without_relaunch(monkeypatch, tmp_path, capsys):
+    pid_file = tmp_path / "clausy.pid"
+    monkeypatch.setattr(cli, "_pid_file_path", lambda: pid_file)
+    monkeypatch.setattr(cli.sys, "executable", "/opt/current/bin/python")
+
+    popen_calls = []
+    monkeypatch.setattr(cli.subprocess, "Popen", lambda *args, **kwargs: popen_calls.append((args, kwargs)))
+
+    class _PsResult:
+        returncode = 0
+        stdout = "456 /opt/current/bin/python -m clausy.server\n"
+
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: _PsResult())
+
+    killed = []
+    monkeypatch.setattr(cli.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+
+    rc = cli.main(["start"])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "already running" in out.lower()
+    assert popen_calls == []
+    assert killed == []
+    assert pid_file.read_text(encoding="utf-8").strip() == "456"

@@ -240,6 +240,66 @@ def _launch_background(extra_env: dict[str, str] | None = None) -> int:
     return 0
 
 
+def _list_clausy_server_processes() -> list[tuple[int, str]]:
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return []
+
+    if result.returncode != 0:
+        return []
+
+    processes: list[tuple[int, str]] = []
+    for raw in (result.stdout or "").splitlines():
+        line = raw.strip()
+        if not line or "clausy.server" not in line:
+            continue
+        pid_text, _, command = line.partition(" ")
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        processes.append((pid, command.strip()))
+    return processes
+
+
+def _is_canonical_clausy_command(command: str) -> bool:
+    expected_exe = str(Path(sys.executable).resolve())
+    command_parts = command.split()
+    if not command_parts:
+        return False
+    actual_exe = str(Path(command_parts[0]).resolve())
+    if actual_exe != expected_exe:
+        return False
+    return "-m clausy.server" in command
+
+
+def _self_heal_stale_server_processes() -> tuple[list[int], list[int]]:
+    canonical: list[int] = []
+    stale: list[int] = []
+
+    for pid, command in _list_clausy_server_processes():
+        if _is_canonical_clausy_command(command):
+            canonical.append(pid)
+        else:
+            stale.append(pid)
+
+    cleaned: list[int] = []
+    for pid in stale:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            cleaned.append(pid)
+        except (ProcessLookupError, PermissionError):
+            continue
+
+    return canonical, cleaned
+
+
 def _try_stop_service_manager() -> bool:
     if sys.platform == "darwin":
         result = subprocess.run(["launchctl", "stop", SERVICE_LABEL], capture_output=True, text=True)
@@ -339,6 +399,19 @@ def _cmd_stop() -> int:
 
 
 def _cmd_start(chrome_mode: bool = False) -> int:
+    canonical_pids, cleaned_stale_pids = _self_heal_stale_server_processes()
+
+    if cleaned_stale_pids:
+        print(f"Cleaned stale Clausy process(es): {', '.join(str(pid) for pid in cleaned_stale_pids)}")
+
+    if canonical_pids:
+        pid = canonical_pids[0]
+        pid_path = _pid_file_path()
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
+        pid_path.write_text(str(pid), encoding="utf-8")
+        print(f"Clausy already running (pid={pid})")
+        return 0
+
     if chrome_mode:
         return _launch_background(
             {
