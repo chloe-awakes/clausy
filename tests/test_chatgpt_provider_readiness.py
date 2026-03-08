@@ -25,6 +25,7 @@ class DummyPage:
         self.reload_calls = 0
         self.goto_calls: list[tuple[str, str | None]] = []
         self.wait_for_timeout_calls: list[int] = []
+        self.evaluate_return = False
 
     def goto(self, url: str, wait_until: str | None = None):
         self.goto_calls.append((url, wait_until))
@@ -39,6 +40,9 @@ class DummyPage:
 
     def locator(self, _selector: str):
         raise RuntimeError("not needed in this test")
+
+    def evaluate(self, _script: str):
+        return self.evaluate_return
 
 
 class DummyComposer:
@@ -84,12 +88,13 @@ def test_ensure_ready_retries_and_recovers_without_forced_reload(monkeypatch):
     assert page.reload_calls == 0
 
 
-def test_ensure_ready_still_fails_without_send_or_enter_submit(monkeypatch):
+def test_ensure_ready_still_fails_without_interactable_composer_send_or_enter(monkeypatch):
     provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
     page = DummyPage()
 
     monkeypatch.setattr(provider, "_is_login_screen", lambda _p: False)
     monkeypatch.setattr(provider, "_find_composer", lambda _p: object())
+    monkeypatch.setattr(provider, "_is_composer_interactable", lambda _c: False)
     monkeypatch.setattr(provider, "_find_send_button", lambda _p: None)
     monkeypatch.setattr(provider, "_can_submit_with_enter", lambda _p, _c: False)
 
@@ -201,3 +206,18 @@ def test_is_composer_interactable_treats_readonly_false_as_editable():
     provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
 
     assert provider._is_composer_interactable(_ReadonlyFalseComposer()) is True
+
+
+def test_send_prompt_uses_active_editable_fallback_when_composer_locator_missing(monkeypatch):
+    provider = ChatGPTWebProvider(url="https://chatgpt.com", allow_anonymous_browser=True)
+    page = DummyPage()
+    page.evaluate_return = True
+
+    monkeypatch.setattr(provider, "_find_composer", lambda _p: None)
+    monkeypatch.setattr(provider, "_find_send_button", lambda _p: None)
+    monkeypatch.setattr(provider, "_can_submit_with_enter", lambda _p, _c: True)
+
+    provider.send_prompt(page, "hello")
+
+    assert page.keyboard.typed == ["hello"]
+    assert "Enter" in page.keyboard.presses

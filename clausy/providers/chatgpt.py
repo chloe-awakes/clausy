@@ -202,9 +202,13 @@ class ChatGPTWebProvider(WebChatProvider):
             login_screen = self._is_login_screen(page)
             composer = self._find_composer(page)
             send_btn = self._find_send_button(page)
+            composer_ready = self._is_composer_interactable(composer)
             enter_submit_ready = self._can_submit_with_enter(page, composer)
 
-            if composer is not None and (send_btn is not None or enter_submit_ready):
+            # Readiness should not depend solely on send button visibility.
+            # In some ChatGPT UI states the button is hidden until typing, while
+            # Enter submission still works with an interactable composer.
+            if composer is not None and (composer_ready or send_btn is not None or enter_submit_ready):
                 if login_screen and not self.allow_anonymous_browser:
                     raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
                 return
@@ -227,33 +231,93 @@ class ChatGPTWebProvider(WebChatProvider):
             raise RuntimeError("NEEDS_LOGIN: ChatGPT shows login screen")
         raise RuntimeError("UI_NOT_READY: composer or send controls not found after recovery")
 
-    def send_prompt(self, page, text: str) -> None:
-        composer = self._find_composer(page)
-        if composer is None:
-            raise RuntimeError("UI_NOT_READY: composer missing")
-
-        composer.click()
+    def _focus_active_editable(self, page, composer) -> bool:
         try:
-            page.keyboard.press("Meta+A")
+            if composer is not None:
+                target = composer.first if hasattr(composer, "first") else composer
+                target.click()
+                return True
         except Exception:
-            page.keyboard.press("Control+A")
-        page.keyboard.press("Backspace")
+            pass
 
-        page.keyboard.type(text, delay=1)
+        # Fallback: focus currently active editable or best-effort composer-like element.
+        try:
+            focused = page.evaluate(
+                """
+                () => {
+                  const isEditable = (el) => {
+                    if (!el) return false;
+                    if (el.matches?.('textarea, input[type="text"], input:not([type])')) return true;
+                    if (el.getAttribute?.('contenteditable') === 'true') return true;
+                    return el.getAttribute?.('role') === 'textbox';
+                  };
+                  const active = document.activeElement;
+                  if (isEditable(active)) {
+                    active.focus();
+                    return true;
+                  }
+                  const selectors = [
+                    '#prompt-textarea',
+                    '[data-testid="prompt-textarea"]',
+                    'textarea[placeholder*="Message"]',
+                    'textarea[placeholder*="Nachricht"]',
+                    'div[contenteditable="true"][role="textbox"]',
+                    'div[contenteditable="true"]',
+                    'textarea',
+                  ];
+                  for (const sel of selectors) {
+                    const el = document.querySelector(sel);
+                    if (!el) continue;
+                    el.focus();
+                    return true;
+                  }
+                  return false;
+                }
+                """
+            )
+            return bool(focused)
+        except Exception:
+            return False
 
-        send_btn = self._find_send_button(page)
-        if send_btn is not None:
+    def send_prompt(self, page, text: str) -> None:
+        attempts = 4
+        for attempt in range(attempts):
+            composer = self._find_composer(page)
+            if composer is None and not self._focus_active_editable(page, None):
+                self._wait_for_ui_settle(page, ms=180)
+                continue
+
+            if not self._focus_active_editable(page, composer):
+                self._wait_for_ui_settle(page, ms=180)
+                continue
+
             try:
-                send_btn.click()
-                return
+                page.keyboard.press("Meta+A")
             except Exception:
-                pass
+                page.keyboard.press("Control+A")
+            page.keyboard.press("Backspace")
+            page.keyboard.type(text, delay=1)
 
-        if self._can_submit_with_enter(page, composer):
-            page.keyboard.press("Enter")
-            return
+            send_btn = self._find_send_button(page)
+            if send_btn is not None:
+                try:
+                    target = send_btn.first if hasattr(send_btn, "first") else send_btn
+                    target.click()
+                    return
+                except Exception:
+                    pass
 
-        raise RuntimeError("UI_NOT_READY: send controls missing")
+            if self._can_submit_with_enter(page, composer) or composer is not None:
+                try:
+                    page.keyboard.press("Enter")
+                    return
+                except Exception:
+                    pass
+
+            if attempt < attempts - 1:
+                self._wait_for_ui_settle(page, ms=220)
+
+        raise RuntimeError("UI_NOT_READY: send controls missing after retries")
 
     def _stop_selector(self) -> str:
         return "button[data-testid='stop-button'], button[aria-label='Stop streaming'], button[aria-label*='Stop']"
