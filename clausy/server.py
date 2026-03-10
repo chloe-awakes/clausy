@@ -1022,14 +1022,14 @@ def chat_completions():
                         continue
 
                     if decided == "tools":
-                        # Wait for completion, then parse tools JSON and emit tool_calls once
+                        # Wait for completion, then parse the final tool-call payload and emit tool_calls once.
                         with _playwright_lock:
                             provider.wait_done(page)
+                            final_full = provider.get_last_assistant_text(page) or buffer
 
-                        tools_text = strip_marker(buffer)
                         parsed = parse_or_repair_output(
-                            raw_text=f"<<<TOOLS>>>\n{tools_text}",
-                            ask_fn=lambda _p: f"<<<TOOLS>>>\n{tools_text}",
+                            raw_text=final_full,
+                            ask_fn=lambda _p: final_full,
                             model_name_for_fallback=model,
                             max_repairs=0,
                         )

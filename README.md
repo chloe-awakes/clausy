@@ -108,23 +108,26 @@ Implemented:
 
 Clausy exposes an **OpenAI-compatible API** to clients.
 
-Internally it communicates with browser LLMs using a simple marker protocol:
+Internally it communicates with browser LLMs using a simple text-vs-tool-call protocol:
+
+User-facing text is emitted as plain text only:
 
 ```
-<<<CONTENT>>>
 plain text response (streamed)
 ```
 
-or
+Tool execution is emitted as exactly one fenced `tool call` block:
 
+````
+```tool call
+exec {"command": "ls -la"}
 ```
-<<<TOOLS>>>
-```json
-{"tool_calls":[...]}
-```
+````
 
-For tool calls, `tool_calls[].function.arguments` must be a JSON-encoded **object** string.
-Tool calls are collected and returned to the client.
+Clausy parses that block and converts it into standard OpenAI/OpenClaw `tool_calls` JSON before returning it to the client.
+Generated `tool_calls[].function.arguments` are always a JSON-encoded **object** string.
+
+Legacy `<<<CONTENT>>>` / `<<<TOOLS>>>` marker output is still accepted for compatibility, but new prompts instruct providers not to use it.
 
 > ⚠️ Experimental. Browser UIs change often. Use at your own risk.
 

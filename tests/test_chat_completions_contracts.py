@@ -144,7 +144,7 @@ def test_tool_call_passthrough_shape_preserved_non_stream(configure_server, tool
 
     assert resp.status_code == 200
     assert body["choices"][0]["finish_reason"] == "tool_calls"
-    assert tc["id"] == "call_1"
+    assert tc["id"].startswith("call_")
     assert tc["type"] == "function"
     assert tc["function"]["name"] == "exec"
     assert args_obj == {"command": "ls -la", "meta": {"cwd": "/tmp"}}

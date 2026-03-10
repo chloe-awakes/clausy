@@ -145,18 +145,8 @@ def configure_server(monkeypatch, make_secret_filter, make_profanity_filter):
 
 @pytest.fixture
 def tools_reply_json():
-    tool_calls = [
-        {
-            "id": "call_1",
-            "type": "function",
-            "function": {
-                "name": "exec",
-                "arguments": json.dumps({"command": "ls -la", "meta": {"cwd": "/tmp"}}),
-            },
-        }
-    ]
     return (
-        "<<<TOOLS>>>\n```json\n"
-        + json.dumps({"tool_calls": tool_calls}, ensure_ascii=False)
-        + "\n```"
+        "```tool call\n"
+        "exec {\"command\": \"ls -la\", \"meta\": {\"cwd\": \"/tmp\"}}\n"
+        "```"
     )
