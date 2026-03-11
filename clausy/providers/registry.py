@@ -28,7 +28,7 @@ class ProviderRegistry:
             "chatgpt": ChatGPTWebProvider(url=chatgpt_url, allow_anonymous_browser=allow_anonymous_browser),
             "claude": ClaudeWebProvider(url=claude_url, allow_anonymous_browser=allow_anonymous_browser),
             "grok": GrokWebProvider(url=grok_url, allow_anonymous_browser=allow_anonymous_browser),
-            "gemini_web": GeminiWebProvider(url=gemini_web_url),
+            "gemini_web": GeminiWebProvider(url=gemini_web_url, allow_anonymous_browser=allow_anonymous_browser),
             "perplexity": PerplexityWebProvider(url=perplexity_url),
             "poe": PoeWebProvider(url=poe_url),
             "deepseek": DeepSeekWebProvider(url=deepseek_url),

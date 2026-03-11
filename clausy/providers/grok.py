@@ -54,18 +54,39 @@ class GrokWebProvider(WebChatProvider):
         )
 
     def _find_composer(self, page):
+        try:
+            textbox = page.get_by_role("textbox")
+            count = textbox.count()
+            if count > 0:
+                for i in range(min(count, 8)):
+                    cand = textbox.nth(i)
+                    try:
+                        if cand.is_visible():
+                            return cand
+                    except Exception:
+                        return cand
+                return textbox.first
+        except Exception:
+            pass
+
         return self._first_locator(
             page,
             [
                 "textarea[placeholder*='Ask']",
                 "textarea[aria-label*='Ask']",
-                "textarea",
                 "div[contenteditable='true'][role='textbox']",
                 "div[contenteditable='true']",
+                "textarea",
             ],
         )
 
     def _find_send_button(self, page):
+        try:
+            btn = page.get_by_role("button", name="Send")
+            if btn.count() > 0:
+                return btn.first
+        except Exception:
+            pass
         return self._first_locator(
             page,
             [
@@ -110,7 +131,7 @@ class GrokWebProvider(WebChatProvider):
             login_screen = self._is_login_screen(page)
             composer = self._find_composer(page)
             send = self._find_send_button(page)
-            if composer is not None and send is not None:
+            if composer is not None:
                 if login_screen and not self.allow_anonymous_browser:
                     raise RuntimeError("NEEDS_LOGIN: Grok shows login screen")
                 return
@@ -135,7 +156,8 @@ class GrokWebProvider(WebChatProvider):
         if composer is None:
             raise RuntimeError("UI_NOT_READY: Grok composer missing")
 
-        composer.first.click()
+        target = composer.first if hasattr(composer, "first") else composer
+        target.click()
         try:
             page.keyboard.press("Meta+A")
         except Exception:
@@ -144,12 +166,13 @@ class GrokWebProvider(WebChatProvider):
         page.keyboard.type(text, delay=1)
 
         send = self._find_send_button(page)
-        if send is None:
-            raise RuntimeError("UI_NOT_READY: Grok send button missing")
-        try:
-            send.first.click()
-        except Exception:
-            page.keyboard.press("Enter")
+        if send is not None:
+            try:
+                (send.first if hasattr(send, "first") else send).click()
+                return
+            except Exception:
+                pass
+        page.keyboard.press("Enter")
 
     def _stop_selector(self) -> str:
         return (

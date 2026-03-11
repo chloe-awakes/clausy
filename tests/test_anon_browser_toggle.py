@@ -7,6 +7,7 @@ from clausy.providers import ProviderRegistry
 from clausy.providers.chatgpt import ChatGPTWebProvider
 from clausy.providers.claude import ClaudeWebProvider
 from clausy.providers.grok import GrokWebProvider
+from clausy.providers.gemini_web import GeminiWebProvider
 
 
 class DummyPage:
@@ -59,6 +60,8 @@ def test_provider_registry_default_wires_allow_anonymous_flag():
     assert registry.get("claude").allow_anonymous_browser is True
     assert isinstance(registry.get("grok"), GrokWebProvider)
     assert registry.get("grok").allow_anonymous_browser is True
+    assert isinstance(registry.get("gemini_web"), GeminiWebProvider)
+    assert registry.get("gemini_web").allow_anonymous_browser is True
 
 
 @pytest.mark.parametrize(
@@ -67,12 +70,14 @@ def test_provider_registry_default_wires_allow_anonymous_flag():
         (ChatGPTWebProvider, "_find_composer", "_find_send_button", "https://chatgpt.com"),
         (ClaudeWebProvider, "_find_input", "_find_send_button", "https://claude.ai"),
         (GrokWebProvider, "_find_composer", "_find_send_button", "https://grok.com"),
+        (GeminiWebProvider, "_find_composer", "_find_send_button", "https://gemini.google.com"),
     ],
 )
 def test_provider_remains_strict_when_anonymous_disabled(monkeypatch, provider_cls, input_method, send_method, home_url):
     monkeypatch.setattr("clausy.providers.chatgpt.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.claude.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.grok.time.sleep", lambda _x: None)
+    monkeypatch.setattr("clausy.providers.gemini_web.time.sleep", lambda _x: None)
 
     provider = provider_cls(url=home_url, allow_anonymous_browser=False)
     page = DummyPage(url=home_url)
@@ -91,12 +96,14 @@ def test_provider_remains_strict_when_anonymous_disabled(monkeypatch, provider_c
         (ChatGPTWebProvider, "_find_composer", "_find_send_button", "https://chatgpt.com"),
         (ClaudeWebProvider, "_find_input", "_find_send_button", "https://claude.ai"),
         (GrokWebProvider, "_find_composer", "_find_send_button", "https://grok.com"),
+        (GeminiWebProvider, "_find_composer", "_find_send_button", "https://gemini.google.com"),
     ],
 )
 def test_provider_allows_anon_when_enabled_if_ui_is_ready(monkeypatch, provider_cls, input_method, send_method, home_url):
     monkeypatch.setattr("clausy.providers.chatgpt.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.claude.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.grok.time.sleep", lambda _x: None)
+    monkeypatch.setattr("clausy.providers.gemini_web.time.sleep", lambda _x: None)
 
     provider = provider_cls(url=home_url, allow_anonymous_browser=True)
     page = DummyPage(url=home_url)
@@ -114,12 +121,14 @@ def test_provider_allows_anon_when_enabled_if_ui_is_ready(monkeypatch, provider_
         (ChatGPTWebProvider, "_find_composer", "_find_send_button", "https://chatgpt.com"),
         (ClaudeWebProvider, "_find_input", "_find_send_button", "https://claude.ai"),
         (GrokWebProvider, "_find_composer", "_find_send_button", "https://grok.com"),
+        (GeminiWebProvider, "_find_composer", "_find_send_button", "https://gemini.google.com"),
     ],
 )
 def test_provider_returns_auth_error_when_anon_enabled_but_page_hard_blocked(monkeypatch, provider_cls, input_method, send_method, home_url):
     monkeypatch.setattr("clausy.providers.chatgpt.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.claude.time.sleep", lambda _x: None)
     monkeypatch.setattr("clausy.providers.grok.time.sleep", lambda _x: None)
+    monkeypatch.setattr("clausy.providers.gemini_web.time.sleep", lambda _x: None)
 
     provider = provider_cls(url=home_url, allow_anonymous_browser=True)
     page = DummyPage(url=home_url)
